@@ -1,0 +1,326 @@
+import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, query, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { ShieldAlert, Plus, Edit2, Trash2, Eye } from 'lucide-react';
+import { useAuth } from '../App';
+import toast from 'react-hot-toast';
+import type { Course, Topic } from '../types';
+import { EDO_STATE_SCHOOLS, AUCHI_POLY_DEPARTMENTS } from '../lib/constants';
+
+import { generateCourseImagePrompt } from '../lib/gemini';
+
+export default function Admin() {
+  const { user, setSimulatedRole } = useAuth();
+  const navigate = useNavigate();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
+  
+  // Forms state
+  const [newCourse, setNewCourse] = useState({ school: 'Auchi Polytechnic', department: '', level: '100L', code: '', title: '', description: '', topicsBulk: '' });
+
+  useEffect(() => {
+    if (user?.is_admin) {
+      fetchCourses();
+    }
+  }, [user]);
+
+  const handleBackfillImages = async () => {
+    const coursesToBackfill = courses.filter(c => !c.thumbnail);
+    if (coursesToBackfill.length === 0) {
+      toast('No courses to backfill', { icon: 'ℹ️' });
+      return;
+    }
+
+    if (!confirm(`Generate AI images for ${coursesToBackfill.length} courses?`)) return;
+
+    setIsBackfilling(true);
+    let successCount = 0;
+    const total = coursesToBackfill.length;
+
+    for (let i = 0; i < total; i++) {
+      const course = coursesToBackfill[i];
+      try {
+        const imagePrompt = await generateCourseImagePrompt(course.title, course.department);
+        const thumbnail = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=800&height=600&seed=${Math.floor(Math.random() * 100000)}&nologo=true`;
+        
+        await updateDoc(doc(db, 'courses', course.id), { thumbnail });
+        successCount++;
+        toast(`Backfilled ${successCount}/${total}`, { icon: '🖼️', id: 'backfill-toast' });
+      } catch (err) {
+        console.error(`Failed to backfill ${course.id}`, err);
+      }
+    }
+
+    setIsBackfilling(false);
+    toast.success(`Successfully backfilled ${successCount} courses!`);
+    fetchCourses();
+  };
+
+  const fetchCourses = async () => {
+    setLoading(true);
+    try {
+      const q = query(collection(db, 'courses'));
+      const querySnapshot = await getDocs(q);
+      const coursesData: Course[] = [];
+      
+      for (const docSnapshot of querySnapshot.docs) {
+        const course = docSnapshot.data() as Course;
+        course.id = docSnapshot.id;
+        
+        const topicsQuery = query(collection(db, `courses/${course.id}/topics`));
+        const topicsSnapshot = await getDocs(topicsQuery);
+        const topics: Topic[] = [];
+        topicsSnapshot.forEach(topicDoc => {
+          const topic = topicDoc.data() as Topic;
+          topic.id = topicDoc.id;
+          topics.push(topic);
+        });
+        
+        course.topics = topics;
+        coursesData.push(course);
+      }
+      
+      setCourses(coursesData);
+    } catch (error) {
+      toast.error('Failed to load courses');
+      handleFirestoreError(error, OperationType.LIST, 'courses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsGenerating(true);
+    const toastId = toast.loading('Generating AI course image...');
+    try {
+      // Generate AI Image Prompt and URL
+      const imagePrompt = await generateCourseImagePrompt(newCourse.title, newCourse.department);
+      // Using Pollinations.ai for AI image generation via URL
+      const thumbnail = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=800&height=600&seed=${Math.floor(Math.random() * 100000)}&nologo=true`;
+
+      const topicsList = newCourse.topicsBulk.split('\n').map(t => t.trim()).filter(t => t);
+      const courseData = { 
+        ...newCourse,
+        thumbnail,
+        createdAt: new Date().toISOString()
+      };
+      delete (courseData as any).topicsBulk;
+
+      const courseRef = await addDoc(collection(db, 'courses'), courseData);
+      
+      // Batch topic creation
+      for (const tTitle of topicsList) {
+        await addDoc(collection(db, `courses/${courseRef.id}/topics`), {
+          course_id: courseRef.id,
+          title: tTitle
+        });
+      }
+
+      toast.success('Course created with AI cover photo!', { id: toastId });
+      setNewCourse({ school: 'Auchi Polytechnic', department: '', level: '100L', code: '', title: '', description: '', topicsBulk: '' });
+      fetchCourses();
+    } catch (error) {
+      toast.error('Failed to create course', { id: toastId });
+      handleFirestoreError(error, OperationType.CREATE, 'courses');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDeleteCourse = async (id: string) => {
+    if (!confirm('Delete this course?')) return;
+    try {
+      await deleteDoc(doc(db, 'courses', id));
+      toast.success('Course deleted');
+      fetchCourses();
+    } catch (error) {
+      toast.error('Failed to delete course');
+      handleFirestoreError(error, OperationType.DELETE, `courses/${id}`);
+    }
+  };
+
+  const handleDeleteTopic = async (courseId: string, topicId: string) => {
+    if (!confirm('Delete this topic?')) return;
+    try {
+      await deleteDoc(doc(db, `courses/${courseId}/topics`, topicId));
+      toast.success('Topic deleted');
+      fetchCourses();
+    } catch (error) {
+      toast.error('Failed to delete topic');
+      handleFirestoreError(error, OperationType.DELETE, `courses/${courseId}/topics/${topicId}`);
+    }
+  };
+
+  if (!user?.is_admin) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <ShieldAlert size={48} className="text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+        <p className="text-muted">You need administrator privileges to view this page.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 pb-20">
+      <header>
+        <span className="badge-blue border-red-200 text-red-500 dark:bg-red-500/10">Admin Dashboard</span>
+        <h2 className="text-3xl font-bold tracking-tight mt-2">Manage Curriculum</h2>
+        <div className="flex flex-wrap gap-2 mt-4">
+          <p className="text-muted text-sm flex-1">Add courses to specific departments and levels.</p>
+          <button 
+            onClick={() => {
+              setSimulatedRole('student');
+              navigate('/');
+            }}
+            className="text-xs px-4 py-2 bg-text/5 text-text rounded-full font-bold hover:bg-text/10 transition-all flex items-center gap-2"
+          >
+            <Eye size={16} />
+            View as Student
+          </button>
+          <button 
+            onClick={handleBackfillImages}
+            disabled={isBackfilling}
+            className="text-xs px-4 py-2 bg-primary/10 text-primary rounded-full font-bold hover:bg-primary/20 disabled:opacity-50 transition-all flex items-center gap-2"
+          >
+            {isBackfilling ? 'Backfilling...' : 'Backfill AI Images'}
+          </button>
+        </div>
+      </header>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        {/* ADD COURSE FORM */}
+        <section className="card-bento space-y-4">
+          <h3 className="font-bold text-lg flex items-center gap-2"><Plus size={18}/> Add Course</h3>
+          <form onSubmit={handleCreateCourse} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <select 
+                required 
+                className="input-field col-span-2" 
+                value={newCourse.school} onChange={e => setNewCourse({...newCourse, school: e.target.value})} 
+              >
+                <option value="" disabled>Select Institution / School</option>
+                {EDO_STATE_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              {newCourse.school === 'Auchi Polytechnic' ? (
+                <select
+                  required
+                  className="input-field col-span-2"
+                  value={newCourse.department} onChange={e => setNewCourse({...newCourse, department: e.target.value})}
+                >
+                  <option value="" disabled>Select Department</option>
+                  {AUCHI_POLY_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              ) : (
+                <input 
+                  required placeholder="Department (e.g. Computer Science)" 
+                  className="input-field col-span-2" 
+                  value={newCourse.department} onChange={e => setNewCourse({...newCourse, department: e.target.value})} 
+                />
+              )}
+              <select 
+                className="input-field"
+                value={newCourse.level} onChange={e => setNewCourse({...newCourse, level: e.target.value})}
+              >
+                <option value="100L">100 Level</option>
+                <option value="200L">200 Level</option>
+                <option value="300L">300 Level</option>
+                <option value="400L">400 Level</option>
+                <option value="500L">500 Level</option>
+                <option value="ND 1">ND 1</option>
+                <option value="ND 2">ND 2</option>
+                <option value="HND 1">HND 1</option>
+                <option value="HND 2">HND 2</option>
+              </select>
+              <input 
+                required placeholder="Code (e.g. MTH 101)" 
+                className="input-field" 
+                value={newCourse.code} onChange={e => setNewCourse({...newCourse, code: e.target.value})} 
+              />
+            </div>
+            <input 
+              required placeholder="Title (e.g. Algebra)" 
+              className="input-field" 
+              value={newCourse.title} onChange={e => setNewCourse({...newCourse, title: e.target.value})} 
+            />
+            <textarea 
+              placeholder="Description" 
+              className="input-field min-h-[80px]" 
+              value={newCourse.description} onChange={e => setNewCourse({...newCourse, description: e.target.value})} 
+            />
+            <textarea 
+              placeholder="Add Topics in Bulk (one topic per line)" 
+              className="input-field min-h-[120px]" 
+              value={newCourse.topicsBulk} onChange={e => setNewCourse({...newCourse, topicsBulk: e.target.value})} 
+            />
+            <button 
+              type="submit" 
+              disabled={isGenerating}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Generating AI Cover...
+                </>
+              ) : (
+                'Create Course'
+              )}
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <section>
+        <h3 className="font-bold text-xl mb-4">Existing Courses</h3>
+        {loading ? (
+           <div className="animate-pulse flex flex-col gap-4">
+             <div className="h-16 bg-surface rounded-xl"></div>
+             <div className="h-16 bg-surface rounded-xl"></div>
+           </div>
+        ) : (
+          <div className="space-y-4">
+            {courses.map(course => (
+              <div key={course.id} className="card-bento p-4 flex flex-col gap-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex gap-4 items-center">
+                    {course.thumbnail && (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shadow-sm border border-border">
+                        <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-[10px] font-bold text-primary tracking-widest uppercase">{course.school} • {course.department} • {course.level} • {course.code}</span>
+                      <h4 className="font-bold text-lg">{course.title}</h4>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDeleteCourse(course.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+                {course.topics && course.topics.length > 0 && (
+                  <div className="pl-4 border-l-2 border-border space-y-2">
+                    {course.topics.map((topic: Topic) => (
+                      <div key={topic.id} className="flex justify-between items-center bg-background p-2 px-3 rounded-lg text-sm">
+                        <span>{topic.title}</span>
+                        <button onClick={() => handleDeleteTopic(course.id, topic.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {courses.length === 0 && <p className="text-muted py-8 text-center">No courses created yet.</p>}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
