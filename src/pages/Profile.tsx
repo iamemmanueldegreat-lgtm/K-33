@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useAuth } from '../App';
 import { Settings, LogOut, ChevronRight, Shield, Bell, CreditCard, ExternalLink, GraduationCap, Camera, Loader2, User, Mail, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { compressImage } from '../lib/utils';
@@ -31,6 +31,7 @@ export default function Profile() {
     } catch (error: any) {
       console.error(error);
       toast.error('Failed to upload image. Please check file format.');
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     } finally {
       setUploadingAvatar(false);
     }
@@ -53,6 +54,7 @@ export default function Profile() {
     } catch (error: any) {
       console.error(error);
       toast.error('Failed to upload cover photo. Please check file format.');
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     } finally {
       setUploadingCover(false);
     }

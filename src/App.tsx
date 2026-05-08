@@ -15,6 +15,7 @@ const Study = lazy(() => import('./pages/Study'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Practice = lazy(() => import('./pages/Practice'));
+const PracticeSession = lazy(() => import('./pages/PracticeSession'));
 const Notes = lazy(() => import('./pages/Notes'));
 
 interface AuthContextType {
@@ -176,6 +177,7 @@ export default function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/practice" element={<Practice />} />
+              <Route path="/practice/:courseId" element={<PracticeSession />} />
               <Route path="/notes" element={<Notes />} />
             </Route>
             <Route path="/study/:courseId/:topicId" element={user ? <Study /> : <Navigate to="/auth" />} />

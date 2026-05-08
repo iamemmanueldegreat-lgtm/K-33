@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -18,6 +18,8 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
   
   // Forms state
   const [newCourse, setNewCourse] = useState({ school: 'Auchi Polytechnic', department: '', level: '100L', code: '', title: '', description: '', topicsBulk: '' });
@@ -52,6 +54,7 @@ export default function Admin() {
         toast(`Backfilled ${successCount}/${total}`, { icon: '🖼️', id: 'backfill-toast' });
       } catch (err) {
         console.error(`Failed to backfill ${course.id}`, err);
+        handleFirestoreError(err, OperationType.UPDATE, `courses/${course.id}`);
       }
     }
 
@@ -92,6 +95,13 @@ export default function Admin() {
       setLoading(false);
     }
   };
+
+  const filteredCourses = courses.filter(course => 
+    course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.school.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleCreateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,48 +286,134 @@ export default function Admin() {
         </section>
       </div>
 
-      <section>
-        <h3 className="font-bold text-xl mb-4">Existing Courses</h3>
+      <section className="mt-12">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <h3 className="font-bold text-xl">Existing Courses</h3>
+          <div className="relative w-full sm:w-64">
+            <input 
+              type="text" 
+              placeholder="Search courses..."
+              className="input-field pl-10 h-10 text-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+              <Eye size={16} />
+            </div>
+          </div>
+        </div>
+
         {loading ? (
            <div className="animate-pulse flex flex-col gap-4">
-             <div className="h-16 bg-surface rounded-xl"></div>
-             <div className="h-16 bg-surface rounded-xl"></div>
+             <div className="h-20 bg-surface rounded-xl"></div>
+             <div className="h-20 bg-surface rounded-xl"></div>
+             <div className="h-20 bg-surface rounded-xl"></div>
            </div>
         ) : (
-          <div className="space-y-4">
-            {courses.map(course => (
-              <div key={course.id} className="card-bento p-4 flex flex-col gap-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex gap-4 items-center">
-                    {course.thumbnail && (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden shadow-sm border border-border">
-                        <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-[10px] font-bold text-primary tracking-widest uppercase">{course.school} • {course.department} • {course.level} • {course.code}</span>
-                      <h4 className="font-bold text-lg">{course.title}</h4>
-                    </div>
-                  </div>
-                  <button onClick={() => handleDeleteCourse(course.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-                {course.topics && course.topics.length > 0 && (
-                  <div className="pl-4 border-l-2 border-border space-y-2">
-                    {course.topics.map((topic: Topic) => (
-                      <div key={topic.id} className="flex justify-between items-center bg-background p-2 px-3 rounded-lg text-sm">
-                        <span>{topic.title}</span>
-                        <button onClick={() => handleDeleteTopic(course.id, topic.id)} className="text-red-400 hover:text-red-600 transition-colors">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          <div className="overflow-hidden bg-surface dark:bg-dark-surface rounded-2xl border border-border dark:border-dark-border">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-background dark:bg-dark-background border-b border-border dark:border-dark-border">
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted">Course</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted hidden md:table-cell">School / Dept</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted hidden sm:table-cell">Level</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted text-center">Topics</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border dark:divide-dark-border">
+                  {filteredCourses.map(course => (
+                    <React.Fragment key={course.id}>
+                      <tr className="hover:bg-primary/5 transition-colors group">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            {course.thumbnail && (
+                              <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-border">
+                                <img src={course.thumbnail} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-bold text-sm leading-tight">{course.code}</div>
+                              <div className="text-xs text-muted truncate max-w-[200px]">{course.title}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 hidden md:table-cell">
+                          <div className="text-xs font-medium">{course.school}</div>
+                          <div className="text-[10px] text-muted">{course.department}</div>
+                        </td>
+                        <td className="p-4 hidden sm:table-cell">
+                          <span className="badge-blue text-[10px] py-0.5">{course.level}</span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button 
+                            onClick={() => setExpandedCourseId(expandedCourseId === course.id ? null : course.id)}
+                            className={`text-xs font-bold px-2 py-1 rounded-md transition-all ${
+                              expandedCourseId === course.id 
+                                ? "bg-primary text-white" 
+                                : "bg-primary/10 text-primary hover:bg-primary/20"
+                            }`}
+                          >
+                            {course.topics?.length || 0} Topics
+                          </button>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => handleDeleteCourse(course.id)}
+                              className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Delete Course"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      {/* Expanded Topics View */}
+                      {expandedCourseId === course.id && (
+                        <tr className="bg-background/50 dark:bg-dark-background/50">
+                          <td colSpan={5} className="p-4 pt-0">
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-4 p-4 rounded-xl bg-surface dark:bg-dark-surface border border-border dark:border-dark-border shadow-inner">
+                                <h5 className="text-xs font-bold uppercase tracking-widest text-primary mb-4">Curriculum Topics</h5>
+                                {course.topics && course.topics.length > 0 ? (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {course.topics.map((topic: Topic) => (
+                                      <div key={topic.id} className="flex justify-between items-center group/topic bg-background dark:bg-dark-background p-2 px-3 rounded-lg border border-border dark:border-dark-border hover:border-primary/30 transition-all">
+                                        <span className="text-xs font-medium">{topic.title}</span>
+                                        <button 
+                                          onClick={() => handleDeleteTopic(course.id, topic.id)}
+                                          className="text-muted hover:text-red-500 p-1 opacity-0 group-hover/topic:opacity-100 transition-all"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted italic">No topics added to this internal curriculum yet.</p>
+                                )}
+                              </div>
+                            </motion.div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {filteredCourses.length === 0 && (
+              <div className="py-12 text-center">
+                <p className="text-muted">No courses found matching your criteria.</p>
               </div>
-            ))}
-            {courses.length === 0 && <p className="text-muted py-8 text-center">No courses created yet.</p>}
+            )}
           </div>
         )}
       </section>

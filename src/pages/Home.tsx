@@ -124,15 +124,16 @@ export default function Home() {
         {/* Days Row */}
         <div className="flex justify-between items-center gap-1">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => {
-            const streakInWeek = user?.streak ? user.streak % 7 || 7 : 0;
-            const isCompleted = idx < streakInWeek;
+            const today = new Date();
+            const todayIdx = (today.getDay() + 6) % 7; // Mon=0, Sun=6
+            const isCompleted = idx <= todayIdx && (todayIdx - idx) < (user?.streak || 0);
             
             return (
               <div key={day} className="flex flex-col items-center gap-2 flex-1">
                 <div 
                   className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
                     isCompleted 
-                      ? "bg-primary/10 dark:bg-primary/20 text-primary scale-105" 
+                      ? "bg-primary/10 dark:bg-primary/20 text-primary scale-105 shadow-sm" 
                       : "bg-gray-100 dark:bg-gray-800/80 text-transparent"
                   }`}
                 >
@@ -142,11 +143,11 @@ export default function Home() {
                     </svg>
                   )}
                   {!isCompleted && (
-                    <div className="w-2 h-2 rounded-full bg-gray-400 dark:bg-gray-500" />
+                    <div className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400" />
                   )}
                 </div>
                 <span className={`text-[10px] font-semibold tracking-wide uppercase ${
-                  isCompleted ? "text-primary" : "text-gray-500 dark:text-gray-500"
+                  isCompleted ? "text-primary dark:text-primary" : "text-gray-500 dark:text-gray-400"
                 }`}>
                   {day}
                 </span>
