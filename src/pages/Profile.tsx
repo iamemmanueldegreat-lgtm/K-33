@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Settings, LogOut, ChevronRight, Shield, Bell, CreditCard, ExternalLink, GraduationCap, Camera, Loader2, User, Mail, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -9,6 +10,7 @@ import { compressImage } from '../lib/utils';
 
 export default function Profile() {
   const { user, signOut, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -139,6 +141,7 @@ export default function Profile() {
 
       <motion.div 
         whileTap={{ scale: 0.98 }}
+        onClick={() => navigate('/billing')}
         className="card-bento !bg-primary text-white border-none relative overflow-hidden group cursor-pointer p-8"
       >
         <div className="relative z-10 flex items-center justify-between">
