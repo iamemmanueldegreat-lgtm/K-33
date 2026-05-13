@@ -30,20 +30,31 @@ export default function Library() {
       let q = query(collection(db, 'courses'));
       
       if (!user?.is_admin) {
+        // Fetch courses for the student's school that match their department OR are 'General'
+        const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
         q = query(
           collection(db, 'courses'),
           where('school', '==', user?.school),
-          where('department', '==', user?.department),
-          where('level', '==', user?.level)
+          where('department', 'in', departments)
         );
       }
       
       const querySnapshot = await getDocs(q);
       
-      const coursesPromises = querySnapshot.docs.map(async (docSnapshot) => {
+      // Filter by level in memory to maintain flexibility without complex Firestore composite indexes
+      let coursesData = querySnapshot.docs.map((docSnapshot) => {
         const course = docSnapshot.data() as Course;
         course.id = docSnapshot.id;
-        
+        return course;
+      });
+
+      if (!user?.is_admin) {
+        coursesData = coursesData.filter(c => 
+          c.level === user?.level || c.level === 'All Levels' || !c.level
+        );
+      }
+      
+      const coursesPromises = coursesData.map(async (course) => {
         const topicsQuery = query(collection(db, `courses/${course.id}/topics`));
         const topicsSnapshot = await getDocs(topicsQuery);
         const topics: Topic[] = [];
@@ -57,8 +68,8 @@ export default function Library() {
         return course;
       });
       
-      const coursesData = await Promise.all(coursesPromises);
-      setCourses(coursesData);
+      const finalCourses = await Promise.all(coursesPromises);
+      setCourses(finalCourses);
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'courses');
     } finally {
@@ -133,86 +144,27 @@ export default function Library() {
           {filteredCourses.map((course) => (
             <div key={course.id} className="card-bento p-0 overflow-hidden group">
               <button 
-                onClick={() => setSelectedCourse(selectedCourse?.id === course.id ? null : course)}
+                onClick={() => navigate(`/course/${course.id}`)}
                 className="w-full p-5 flex items-center justify-between text-left transition-colors"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-300 overflow-hidden">
-                    {course.thumbnail ? (
-                      <img 
-                        src={course.thumbnail} 
-                        alt={course.title} 
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                      />
-                    ) : (
-                      <BookOpen size={24} />
-                    )}
+                    <img 
+                      src={`https://picsum.photos/seed/lib-${course.id}/400/400`} 
+                      alt={course.title} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 filter grayscale group-hover:grayscale-0 opacity-80 group-hover:opacity-100" 
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-primary tracking-widest uppercase mb-0.5">{course.code}</p>
                     <h4 className="font-bold text-lg leading-tight">{course.title}</h4>
                   </div>
                 </div>
-                <motion.div
-                  animate={{ rotate: selectedCourse?.id === course.id ? 90 : 0 }}
-                  className="p-2 rounded-lg bg-background border border-border"
-                >
-                  <ChevronRight size={18} className="text-muted" />
-                </motion.div>
+                <div className="p-2 rounded-lg bg-background border border-border group-hover:bg-primary group-hover:border-primary group-hover:text-white transition-all">
+                  <ChevronRight size={18} />
+                </div>
               </button>
-
-              <AnimatePresence>
-                {selectedCourse?.id === course.id && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="bg-background/50 border-t border-border"
-                  >
-                    <div className="p-5 space-y-3">
-                      <p className="text-xs text-muted leading-relaxed">{course.description}</p>
-                      <div className="grid grid-cols-1 gap-2 pt-2">
-                      {course.topics && course.topics.map((topic) => (
-                        <div key={topic.id} className="flex items-center gap-2">
-                          <button
-                            onClick={() => navigate(`/study/${course.id}/${topic.id}`)}
-                            className="flex-1 p-4 rounded-xl bg-surface border border-border flex items-center justify-between hover:border-primary hover:shadow-sm transition-all group/topic"
-                          >
-                            <span className="text-sm font-bold">{topic.title}</span>
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary opacity-0 group-hover/topic:opacity-100 transition-all">
-                              <ChevronRight size={14} />
-                            </div>
-                          </button>
-                          {user?.is_admin && (
-                            <button
-                              onClick={(e) => handleGenerateContent(e, course, topic)}
-                              disabled={generatingTopicId === topic.id}
-                              className={`p-4 rounded-xl border transition-all flex items-center justify-center min-w-[56px]
-                                ${topic.content 
-                                  ? 'bg-success/10 text-success border-success/20 hover:bg-success/20' 
-                                  : 'bg-surface border-border text-primary hover:border-primary'}
-                              `}
-                              title={topic.content ? "Regenerate Content" : "Generate Content"}
-                            >
-                              {generatingTopicId === topic.id ? (
-                                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                              ) : topic.content ? (
-                                <CheckCircle2 size={18} />
-                              ) : (
-                                <Wand2 size={18} />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      {(!course.topics || course.topics.length === 0) && (
-                        <p className="text-sm text-muted text-center py-4">No topics found for this course.</p>
-                      )}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           ))}
 

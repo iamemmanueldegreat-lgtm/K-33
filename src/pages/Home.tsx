@@ -33,20 +33,20 @@ export default function Home() {
 
       let q = query(collection(db, 'courses'), limit(10));
       if (!user?.is_admin) {
+        // Fetch courses for the student's school that match their department OR are 'General'
+        const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
         q = query(
           collection(db, 'courses'),
           where('school', '==', user?.school),
-          where('department', '==', user?.department),
-          where('level', '==', user?.level),
-          limit(10)
+          where('department', 'in', departments),
+          limit(20)
         );
       }
-      const coursesPromise = getDocs(q);
+      const coursesSnapshotPromise = getDocs(q);
 
-      // Await both top-level queries
-      const [recentViewsSnapshot, querySnapshot] = await Promise.all([recentViewsPromise, coursesPromise]);
+      const [recentViewsSnapshot, coursesSnapshot] = await Promise.all([recentViewsPromise, coursesSnapshotPromise]);
       
-      // Fetch course details and topics in parallel
+      // Fetch course details and topics in parallel for continue learning
       const continueLearningPromises = recentViewsSnapshot.docs.map(async (viewDoc) => {
         const viewData = viewDoc.data();
         const courseRef = doc(db, 'courses', viewData.courseId);
@@ -64,11 +64,19 @@ export default function Home() {
       const continueLearningData = (await Promise.all(continueLearningPromises)).filter(Boolean) as Course[];
       setContinueLearning(continueLearningData);
 
-      const coursesData: Course[] = querySnapshot.docs.map(docSnapshot => ({
+      // Filter by level in memory to maintain flexibility without complex Firestore composite indexes
+      let coursesData: Course[] = coursesSnapshot.docs.map(docSnapshot => ({
         id: docSnapshot.id,
         ...docSnapshot.data()
       } as Course));
-      setRecentCourses(coursesData);
+
+      if (!user?.is_admin) {
+        coursesData = coursesData.filter(c => 
+          c.level === user?.level || c.level === 'All Levels' || !c.level
+        );
+      }
+      
+      setRecentCourses(coursesData.slice(0, 10));
     } catch (error) {
       console.error("Error fetching home data:", error);
       handleFirestoreError(error, OperationType.LIST, 'courses');
@@ -198,8 +206,12 @@ export default function Home() {
         onClick={() => navigate('/library')}
         className="bg-surface rounded-[20px] p-4 flex items-center gap-4 shadow-sm border border-border cursor-pointer group hover:border-primary/30 transition-colors"
       >
-        <div className="w-12 h-12 bg-background border border-border text-muted rounded-xl flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-          <Book size={20} />
+        <div className="w-12 h-12 bg-background border border-border rounded-xl flex items-center justify-center overflow-hidden transition-all group-hover:scale-105 group-hover:shadow-[0_0_10px_rgba(var(--primary),0.2)]">
+          <img 
+            src="https://images.unsplash.com/photo-1544716278-e513176f20b5?auto=format&fit=crop&q=80&w=100&h=100" 
+            alt="Courses" 
+            className="w-full h-full object-cover"
+          />
         </div>
         <div className="flex-1">
           <h4 className="font-bold text-sm">Your enrolled courses</h4>
@@ -229,19 +241,14 @@ export default function Home() {
                  >
                     {/* Top half - AI Illustration or abstract background */}
                     <div className="h-[120px] bg-background border-b border-border flex items-center justify-center relative overflow-hidden">
-                      {course.thumbnail ? (
-                        <img 
-                          src={course.thumbnail} 
-                          alt={course.title} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                        />
-                      ) : (
-                        <>
-                          <div className="absolute right-4 top-4 w-16 h-16 rounded-full border-[6px] border-border/50"></div>
-                          <BookOpen size={40} className="text-muted/30" />
-                          <div className="absolute bottom-0 w-full h-1 bg-primary"></div>
-                        </>
-                      )}
+                      <img 
+                        src={`https://picsum.photos/seed/course-${course.id}/600/400`} 
+                        alt={course.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80" 
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                      
                       {/* Play button overlay */}
                       <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20">
                           <div className="w-12 h-12 bg-white/90 text-primary rounded-full flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
@@ -287,15 +294,13 @@ export default function Home() {
                    className="min-w-[240px] bg-surface rounded-[24px] overflow-hidden shadow-sm border border-border cursor-pointer snap-start flex flex-col group hover:border-primary/30 transition-colors"
                  >
                    <div className="h-[100px] bg-background border-b border-border flex items-center justify-center relative overflow-hidden text-muted/30">
-                       {course.thumbnail ? (
-                         <img 
-                           src={course.thumbnail} 
-                           alt={course.title} 
-                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                         />
-                       ) : (
-                        <svg className="w-16 h-16 group-hover:scale-110 transition-transform duration-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-                       )}
+                       <img 
+                         src={`https://picsum.photos/seed/thumb-${course.id}/400/300`} 
+                         alt={course.title} 
+                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 filter grayscale group-hover:grayscale-0 opacity-60 group-hover:opacity-100" 
+                         referrerPolicy="no-referrer"
+                       />
+                       <div className="absolute inset-0 bg-black/5"></div>
                    </div>
                    <div className="p-4 flex-1 flex flex-col justify-center">
                      <h4 className="text-sm font-bold leading-tight line-clamp-1 mb-1.5">{course.title}</h4>

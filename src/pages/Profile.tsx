@@ -63,23 +63,22 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="card-bento flex flex-col items-center py-8 bg-gradient-to-b from-surface to-background border-none relative overflow-hidden">
+    <div className="space-y-6 pb-24">
+      <header className="flex flex-col items-center py-10 bg-gradient-to-b from-surface to-background border-b border-border relative overflow-hidden">
         {/* Cover Image Background */}
-        {user?.cover_url && (
-          <div className="absolute inset-0 z-0 opacity-40 dark:opacity-30">
-            <img src={user.cover_url} alt="Cover" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-transparent"></div>
-          </div>
-        )}
-        {/* Abstract Background Design if no cover */}
-        {!user?.cover_url && (
-            <div className="absolute top-0 left-0 w-full h-full bg-primary/5 -skew-y-12 translate-y-20 z-0"></div>
-        )}
+        <div className="absolute inset-0 z-0 opacity-40 dark:opacity-30">
+          <img 
+            src={user?.cover_url || "https://picsum.photos/seed/kortex-profile-banner/1200/400?blur=2"} 
+            alt="Cover" 
+            className="w-full h-full object-cover" 
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-surface/50 to-transparent"></div>
+        </div>
 
         <button 
            onClick={() => coverInputRef.current?.click()}
-           className="absolute top-4 right-4 z-20 p-2 bg-surface/50 hover:bg-surface backdrop-blur-md rounded-full shadow-sm transition-colors text-text/80 pointer-events-auto border border-border"
+           className="absolute top-4 right-4 z-20 p-2 bg-background/50 hover:bg-background backdrop-blur-md rounded-full shadow-sm transition-colors text-text/80 pointer-events-auto border border-border"
            title="Change Cover Photo"
         >
             {uploadingCover ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
@@ -92,7 +91,7 @@ export default function Profile() {
            onChange={handleCoverUpload}
         />
 
-        <div className="relative z-10 group">
+        <div className="relative z-10 group mt-4">
           <button 
              onClick={() => avatarInputRef.current?.click()}
              className="relative w-24 h-24 bg-primary rounded-[32px] flex items-center justify-center text-white text-3xl font-bold shadow-2xl shadow-primary/40 overflow-hidden"
@@ -139,11 +138,12 @@ export default function Profile() {
         </div>
       </header>
 
-      <motion.div 
-        whileTap={{ scale: 0.98 }}
-        onClick={() => navigate('/billing')}
-        className="card-bento !bg-primary text-white border-none relative overflow-hidden group cursor-pointer p-8"
-      >
+      <div className="px-4 sm:px-6 space-y-6 w-full">
+        <motion.div 
+          whileTap={{ scale: 0.98 }}
+          onClick={() => navigate('/billing')}
+          className="card-bento !bg-primary text-white border-none relative overflow-hidden group cursor-pointer p-8"
+        >
         <div className="relative z-10 flex items-center justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2 mb-2">
@@ -254,6 +254,7 @@ export default function Profile() {
       <p className="text-center text-[10px] text-muted uppercase tracking-[0.3em] font-bold py-8">
         v1.0.0
       </p>
+      </div>
     </div>
   );
 }

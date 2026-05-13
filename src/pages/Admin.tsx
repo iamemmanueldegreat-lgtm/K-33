@@ -237,6 +237,7 @@ export default function Admin() {
                 className="input-field"
                 value={newCourse.level} onChange={e => setNewCourse({...newCourse, level: e.target.value})}
               >
+                <option value="All Levels">All Levels</option>
                 <option value="100L">100 Level</option>
                 <option value="200L">200 Level</option>
                 <option value="300L">300 Level</option>

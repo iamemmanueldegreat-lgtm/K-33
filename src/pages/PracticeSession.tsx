@@ -51,7 +51,7 @@ export default function PracticeSession() {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-8 pt-4 pb-20">
+    <div className="w-full space-y-8 pt-4 pb-20 px-4 sm:px-6 xl:px-8">
       <header className="flex items-center gap-4">
         <button 
           onClick={() => navigate('/practice')}
@@ -68,9 +68,16 @@ export default function PracticeSession() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card-bento p-12 flex flex-col items-center justify-center text-center space-y-6 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20"
+        className="card-bento p-12 flex flex-col items-center justify-center text-center space-y-6 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20 relative overflow-hidden"
       >
-        <div className="w-24 h-24 bg-primary/10 rounded-[32px] flex items-center justify-center text-primary relative">
+        <img 
+          src="https://picsum.photos/seed/kortex-ai-brain/800/800?blur=5" 
+          alt="" 
+          className="absolute inset-0 w-full h-full object-cover opacity-[0.05] pointer-events-none"
+          referrerPolicy="no-referrer"
+        />
+        
+        <div className="w-24 h-24 bg-primary/10 rounded-[32px] flex items-center justify-center text-primary relative z-10">
           <BrainCircuit size={48} strokeWidth={1.5} />
           <div className="absolute -top-2 -right-2 w-8 h-8 bg-accent text-white rounded-full flex items-center justify-center animate-bounce shadow-lg">
             <Sparkles size={16} fill="currentColor" />

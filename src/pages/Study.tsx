@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft } from 'lucide-react';
+import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { generateStudyContent } from '../lib/gemini';
 import Markdown from 'react-markdown';
@@ -21,6 +21,7 @@ export default function Study() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [topicsDropdownOpen, setTopicsDropdownOpen] = useState(false);
 
   // active tab
   const [activeTab, setActiveTab] = useState('Explanation');
@@ -83,7 +84,7 @@ export default function Study() {
   const filteredTopics = topics.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
-    <div className="flex h-screen bg-background text-text font-sans overflow-hidden">
+    <div className="flex h-[100dvh] bg-background text-text font-sans overflow-hidden">
       
       {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
@@ -189,7 +190,7 @@ export default function Study() {
         </header>
 
         {/* Content Wrapper */}
-        <div className="max-w-3xl mx-auto px-6 sm:px-12 pb-24 pt-4">
+        <div className="w-full px-4 sm:px-6 xl:px-8 pb-24 pt-4">
           
           {loading ? (
              <div className="py-32 flex flex-col items-center justify-center gap-6 animate-pulse">
@@ -202,6 +203,47 @@ export default function Study() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
+              {/* Topic Menu Bar */}
+              <div className="relative mb-6 z-20">
+                <button
+                  onClick={() => setTopicsDropdownOpen(!topicsDropdownOpen)}
+                  className="flex items-center gap-2 px-4 py-2 bg-surface border border-border hover:border-primary rounded-xl text-sm font-semibold transition-all shadow-sm max-w-full"
+                >
+                  <span className="truncate">{titles.course}</span>
+                  <span className="text-muted mx-1">•</span>
+                  <span className="truncate text-primary">{titles.topic}</span>
+                  <ChevronDown size={16} className={`ml-2 transition-transform ${topicsDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {topicsDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute top-full left-0 mt-2 w-full max-w-md bg-surface border border-border rounded-2xl shadow-xl overflow-hidden custom-scrollbar"
+                    >
+                      <div className="p-3 max-h-[300px] overflow-y-auto">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-muted mb-2 px-2">All Topics</h4>
+                        <div className="space-y-1">
+                          {topics.map(t => (
+                            <Link
+                              key={t.id}
+                              to={`/study/${courseId}/${t.id}`}
+                              onClick={() => setTopicsDropdownOpen(false)}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${t.id === topicId ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-muted/10 text-text'}`}
+                            >
+                              <span className="line-clamp-2 pr-4">{t.title}</span>
+                              {t.id === topicId && <CheckCircle2 size={16} />}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              
               {/* Title Section */}
               <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-8 leading-[1.1]">{titles.topic}</h1>
               

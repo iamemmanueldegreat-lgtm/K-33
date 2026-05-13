@@ -11,6 +11,7 @@ export const EDO_STATE_SCHOOLS = [
 ];
 
 export const AUCHI_POLY_DEPARTMENTS = [
+  'General',
   'Computer Science',
   'Science Laboratory Technology',
   'Mass Communication',
@@ -29,6 +30,7 @@ export const AUCHI_POLY_DEPARTMENTS = [
 
 // For other schools, we can just use a standard list or allow typing
 export const STANDARD_DEPARTMENTS = [
+  'General',
   'Computer Science',
   'Business Administration',
   'Accountancy',

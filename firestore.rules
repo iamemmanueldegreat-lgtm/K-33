@@ -55,6 +55,14 @@ service cloud.firestore {
              (!('tags' in data) || (data.tags is list && data.tags.size() <= 10));
     }
 
+    function isValidChatSession(data) {
+      return data.keys().hasAll(['userId', 'title', 'messages', 'createdAt', 'updatedAt']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.messages is list && data.messages.size() <= 500 && // limit 500
+             data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
     match /users/{userId} {
       allow get: if isSignedIn() && request.auth.uid == userId;
       allow list: if false; // No blanket reads
@@ -114,6 +122,22 @@ service cloud.firestore {
                     incoming().createdAt == existing().createdAt &&
                     incoming().updatedAt == request.time &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'color', 'tags', 'isLocked', 'updatedAt']);
+      
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    match /chat_sessions/{sessionId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(sessionId) && isValidChatSession(incoming()) && 
+                    incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && 
+                    isValidChatSession(incoming()) && 
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'messages', 'updatedAt']);
       
       allow delete: if isSignedIn() && existing().userId == request.auth.uid;
     }

@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Home, Library, User, BookOpen, ShieldAlert, FileText } from 'lucide-react';
+import { Home, Library, User, BookOpen, ShieldAlert, FileText, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -14,17 +14,26 @@ export default function MainLayout() {
   const { user, simulatedRole, setSimulatedRole } = useAuth();
   const location = useLocation();
   const isNotesPage = location.pathname === '/notes';
+  const isChatPage = location.pathname === '/chat';
+  const isProfilePage = location.pathname === '/profile';
+  const hideTabBar = isNotesPage || isChatPage;
 
   const effectiveIsAdmin = user?.is_admin && simulatedRole === 'admin';
 
   return (
     <div className={cn(
-      "min-h-screen bg-background",
-      !isNotesPage && "pb-20"
+      "min-h-[100dvh] flex flex-col bg-background",
+      !hideTabBar && "pb-20",
+      isChatPage && "h-[100dvh] overflow-hidden !pb-0" // override for chat to prevent main page scroll
     )}>
-      <main className="max-w-lg mx-auto p-4 sm:p-6">
+      <main className={cn(
+        "flex-1 flex flex-col w-full min-h-0",
+        (!isChatPage && !isProfilePage) ? "p-4 sm:p-6 xl:p-8" : "p-0"
+      )}>
         <AnimatePresence mode="wait">
           <motion.div
+            key={location.pathname}
+            className={cn(isChatPage && "flex-1 flex flex-col min-h-0")}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -35,9 +44,9 @@ export default function MainLayout() {
         </AnimatePresence>
       </main>
 
-      {!isNotesPage && (
+      {!hideTabBar && (
         <div className="fixed bottom-6 left-0 right-0 z-[100] px-4 pointer-events-none flex justify-center">
-          <nav className="w-[90%] max-w-md h-14 bg-surface/95 backdrop-blur-xl rounded-full flex items-center justify-between px-1.5 shadow-lg shadow-black/5 border border-border pointer-events-auto">
+          <nav className="w-[94%] max-w-lg h-14 bg-surface/95 backdrop-blur-xl rounded-full flex items-center justify-between px-1.5 shadow-lg shadow-black/5 border border-border pointer-events-auto">
             <NavLink to="/" className={({ isActive }) => cn(
               "h-11 flex items-center gap-2 px-3.5 rounded-full transition-all duration-300",
               isActive ? "bg-primary text-white" : "text-muted hover:text-text"
@@ -124,13 +133,13 @@ export default function MainLayout() {
               </NavLink>
             )}
 
-            <NavLink to="/notes" className={({ isActive }) => cn(
+            <NavLink to="/chat" className={({ isActive }) => cn(
               "h-11 flex items-center gap-2 px-3.5 rounded-full transition-all duration-300",
               isActive ? "bg-primary text-white" : "text-muted hover:text-text"
             )}>
               {({ isActive }) => (
                 <>
-                  <FileText size={20} strokeWidth={isActive ? 2.5 : 2} />
+                  <MessageSquare size={20} strokeWidth={isActive ? 2.5 : 2} />
                   {isActive && (
                     <motion.span 
                       layoutId="nav-label-1"
@@ -138,7 +147,7 @@ export default function MainLayout() {
                       animate={{ opacity: 1, width: 'auto' }}
                       className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap"
                     >
-                      Notes
+                      Chat
                     </motion.span>
                   )}
                 </>

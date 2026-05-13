@@ -50,10 +50,10 @@ export default function Billing() {
   };
 
   return (
-    <div className="min-h-screen bg-background dark:bg-dark-background text-text dark:text-dark-text pb-24 overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-background dark:bg-dark-background text-text dark:text-dark-text pb-24 overflow-x-hidden">
       {/* Header */}
       <header className="relative pt-8 pb-16 px-6">
-        <div className="max-w-4xl mx-auto flex items-center justify-between relative z-10">
+        <div className="w-full flex items-center justify-between relative z-10 px-4 sm:px-6 xl:px-8">
           <button 
             onClick={() => navigate('/profile')}
             className="group flex items-center gap-2 text-sm font-bold bg-surface dark:bg-dark-surface p-2 px-4 rounded-2xl border border-border dark:border-dark-border shadow-sm hover:border-primary/50 transition-all"
@@ -87,19 +87,27 @@ export default function Billing() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-primary/15 via-background to-transparent -z-10 blur-[120px] opacity-60"></div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6">
+      <main className="w-full px-4 sm:px-6 xl:px-8">
         <div className="grid md:grid-cols-2 gap-8 items-stretch pt-4">
           {subscriptionPlans.map((plan) => (
             <motion.div 
               key={plan.id}
               whileHover={{ y: -6 }}
               className={`card-bento p-8 md:p-12 flex flex-col relative overflow-hidden transition-all border-2 ${
-                plan.popular 
+                plan.id === 'semester' 
                   ? "border-accent shadow-2xl shadow-accent/10 bg-surface dark:bg-dark-surface" 
                   : "border-primary/20 bg-surface/50 dark:bg-dark-surface/50"
               }`}
             >
-              {plan.popular && (
+              {/* Background Accent Image */}
+              <img 
+                src={`https://picsum.photos/seed/plan-${plan.id}/800/800?blur=4`} 
+                alt="" 
+                className="absolute inset-0 w-full h-full object-cover opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
+                referrerPolicy="no-referrer"
+              />
+              
+              {plan.id === 'semester' && (
                 <div className="absolute top-0 right-0 bg-accent text-white text-[10px] font-black uppercase px-6 py-2 rounded-bl-3xl tracking-widest">
                   Best Value
                 </div>

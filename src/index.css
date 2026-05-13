@@ -59,6 +59,11 @@
 
   body {
     @apply bg-background text-text transition-colors duration-300 antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  html {
+    scroll-behavior: smooth;
   }
 }
 

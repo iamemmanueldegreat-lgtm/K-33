@@ -61,6 +61,22 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "content", "createdAt", "updatedAt"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A user's chat session",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "messages": { 
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "messages", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -83,6 +99,10 @@
     "/notes/{noteId}": {
       "schema": { "$ref": "#/entities/Note" },
       "description": "User notes"
+    },
+    "/chat_sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/ChatSession" },
+      "description": "User chat sessions"
     }
   }
 }

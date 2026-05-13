@@ -71,10 +71,50 @@ export default function Auth() {
   const prevStep = () => setStep(step - 1);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-primary/20 bg-surface p-1 overflow-hidden">
+    <div className="min-h-[100dvh] bg-background flex flex-col md:flex-row items-center justify-center overflow-hidden">
+      {/* Left side: Hero Image (Desktop only) */}
+      <div className="hidden md:flex md:w-1/2 lg:w-[60%] h-screen relative items-center justify-center overflow-hidden bg-primary/5">
+        <img 
+          src="https://picsum.photos/seed/kortex-auth-hero/1200/1200?blur=1" 
+          alt="Learning Hub" 
+          className="absolute inset-0 w-full h-full object-cover opacity-60 saturate-50"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-background"></div>
+        
+        <div className="relative z-10 px-12 lg:px-24">
+           <motion.div 
+             initial={{ opacity: 0, y: 30 }}
+             animate={{ opacity: 1, y: 0 }}
+             className="max-w-xl"
+           >
+             <h2 className="text-5xl lg:text-7xl font-black tracking-tighter text-text leading-[0.9]">
+               Revolutionizing <span className="text-primary italic">Education</span> in Nigeria.
+             </h2>
+             <p className="mt-8 text-xl text-muted font-medium max-w-md leading-relaxed">
+               Access AI-powered course materials, personalized practice tests, and a smarter way to study.
+             </p>
+             
+             <div className="mt-12 flex gap-8">
+                <div className="space-y-1">
+                   <p className="text-3xl font-black">10k+</p>
+                   <p className="text-xs uppercase font-bold tracking-widest text-muted">Active Students</p>
+                </div>
+                <div className="space-y-1">
+                   <p className="text-3xl font-black">100%</p>
+                   <p className="text-xs uppercase font-bold tracking-widest text-muted">AI Personalized</p>
+                </div>
+             </div>
+           </motion.div>
+        </div>
+      </div>
+
+      {/* Right side: Auth Form */}
+      <div className="w-full md:w-1/2 lg:w-[40%] flex flex-col items-center justify-center p-6 md:p-12 relative z-20">
+        <div className="w-full max-w-md">
+          <div className="flex flex-col items-center md:items-start mb-8">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-primary/20 bg-surface p-1 overflow-hidden">
             <img src="/logo.png" alt="KortexAi Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-text">KortexAi</h1>
@@ -269,6 +309,7 @@ export default function Auth() {
           </button>
         </p>
       </div>
+    </div>
     </div>
   );
 }

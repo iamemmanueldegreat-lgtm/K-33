@@ -17,6 +17,8 @@ const Admin = lazy(() => import('./pages/Admin'));
 const Practice = lazy(() => import('./pages/Practice'));
 const PracticeSession = lazy(() => import('./pages/PracticeSession'));
 const Notes = lazy(() => import('./pages/Notes'));
+const Chat = lazy(() => import('./pages/Chat'));
+const Course = lazy(() => import('./pages/Course'));
 const Billing = lazy(() => import('./pages/Billing'));
 
 interface AuthContextType {
@@ -156,7 +158,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background dark:bg-dark-background">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background dark:bg-dark-background">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
@@ -166,7 +168,7 @@ export default function App() {
     <AuthContext.Provider value={{ user, loading, signOut, refreshProfile, simulatedRole, setSimulatedRole }}>
       <BrowserRouter>
         <Suspense fallback={
-          <div className="min-h-screen flex items-center justify-center bg-background dark:bg-dark-background">
+          <div className="min-h-[100dvh] flex items-center justify-center bg-background dark:bg-dark-background">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
           </div>
         }>
@@ -177,9 +179,10 @@ export default function App() {
               <Route path="/library" element={<Library />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />
-              <Route path="/practice" element={<Practice />} />
+              <Route path="/course/:courseId" element={<Course />} />
               <Route path="/practice/:courseId" element={<PracticeSession />} />
               <Route path="/notes" element={<Notes />} />
+              <Route path="/chat" element={<Chat />} />
               <Route path="/billing" element={<Billing />} />
             </Route>
             <Route path="/study/:courseId/:topicId" element={user ? <Study /> : <Navigate to="/auth" />} />
