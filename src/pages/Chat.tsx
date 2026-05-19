@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../App';
 import { useNavigate } from 'react-router-dom';
-import { GoogleGenAI } from '@google/genai';
 import { 
   Send, 
   ArrowLeft,
@@ -251,35 +250,57 @@ export default function Chat() {
     const activeSessionId = await saveMessageToSession(messages, userMessage, currentSessionId);
 
     try {
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error("GEMINI_API_KEY environment variable is missing.");
-      }
-      
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const validHistory = historyBeforeResponse.filter(m => m.parts && m.parts[0].text);
 
-      const responseStream = await ai.models.generateContentStream({
-        model: "gemini-3.1-flash-lite", 
-        contents: validHistory.map(m => ({
-          role: m.role,
-          parts: m.parts
-        }))
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: validHistory.map(m => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.parts[0].text
+          }))
+        })
       });
+
+      if (!res.ok) throw new Error("Failed to communicate with chat API");
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
 
       let accumulatedText = "";
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }] }]);
 
-      for await (const chunk of responseStream) {
-        if (chunk.text) {
-          accumulatedText += chunk.text;
-          setMessages(prev => {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              role: 'model',
-              parts: [{ text: accumulatedText }]
-            };
-            return updated;
-          });
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6);
+            if (dataStr === '[DONE]') continue;
+            
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.text) {
+                accumulatedText += data.text;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    role: 'model',
+                    parts: [{ text: accumulatedText }]
+                  };
+                  return updated;
+                });
+              }
+            } catch (e) {
+              console.error("Error parsing stream chunk", e);
+            }
+          }
         }
       }
       

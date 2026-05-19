@@ -63,25 +63,33 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6 pb-24">
-      <header className="flex flex-col items-center py-10 bg-gradient-to-b from-surface to-background border-b border-border relative overflow-hidden">
+    <div className="space-y-6 pb-24 selection:bg-primary/10">
+      <header className="flex flex-col items-center py-12 bg-white dark:bg-background border-b border-border relative overflow-hidden">
+        {/* Decorative Grid */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+          style={{ 
+            backgroundImage: `linear-gradient(to right, #0D4C50 1px, transparent 1px), linear-gradient(to bottom, #0D4C50 1px, transparent 1px)`, 
+            backgroundSize: '30px 30px' 
+          }}
+        />
+
         {/* Cover Image Background */}
-        <div className="absolute inset-0 z-0 opacity-40 dark:opacity-30">
+        <div className="absolute inset-0 z-0 opacity-15">
           <img 
-            src={user?.cover_url || "https://picsum.photos/seed/kortex-profile-banner/1200/400?blur=2"} 
+            src={user?.cover_url || "https://images.unsplash.com/photo-1541339907198-e08756ebafe3?auto=format&fit=crop&q=80&w=1200"} 
             alt="Cover" 
             className="w-full h-full object-cover" 
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-surface/50 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-background via-transparent to-transparent"></div>
         </div>
 
         <button 
            onClick={() => coverInputRef.current?.click()}
-           className="absolute top-4 right-4 z-20 p-2 bg-background/50 hover:bg-background backdrop-blur-md rounded-full shadow-sm transition-colors text-text/80 pointer-events-auto border border-border"
+           className="absolute top-6 right-6 z-20 p-2.5 bg-white/80 dark:bg-surface/80 hover:bg-white dark:hover:bg-surface backdrop-blur-md rounded-full shadow-sm transition-all text-primary border border-primary/10 dark:border-white/10 active:scale-90"
            title="Change Cover Photo"
         >
-            {uploadingCover ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+            {uploadingCover ? <Loader2 size={16} className="animate-spin" /> : <Camera size={18} />}
         </button>
         <input 
            type="file" 
@@ -139,6 +147,43 @@ export default function Profile() {
       </header>
 
       <div className="px-4 sm:px-6 space-y-6 w-full">
+        {user?.is_admin && (
+          <motion.a 
+            href="https://admin.kortexai.online" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            whileTap={{ scale: 0.98 }}
+            className="flex flex-col md:flex-row gap-4 bg-gradient-to-br from-[#121212] to-[#1e1e24] dark:from-[#0c0c0e] dark:to-[#17171e] text-white border border-white/10 relative overflow-hidden group cursor-pointer p-6 sm:p-8 rounded-[32px] shadow-2xl"
+          >
+            <div className="relative z-10 flex-1 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl">
+                    <Shield size={18} fill="currentColor" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Workspace Management</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black italic uppercase tracking-tight text-white group-hover:text-amber-400 transition-colors">
+                  Kortex AI <span className="text-amber-400">Lovable Admin</span>
+                </h3>
+                <p className="text-zinc-400 text-xs sm:text-sm mt-2 leading-relaxed max-w-md">
+                  Update courses, view registered student metrics, update curriculum topics, and manage monetization instantly through your custom admin portal.
+                </p>
+              </div>
+              <div className="mt-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-400/80">
+                <span>Access Workspace</span>
+                <ExternalLink size={12} className="group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+            <div className="relative z-10 flex items-center justify-center self-end md:self-center">
+              <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform text-white">
+                <ChevronRight size={20} />
+              </div>
+            </div>
+            <div className="absolute -right-8 -bottom-8 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl group-hover:scale-115 transition-transform"></div>
+          </motion.a>
+        )}
+
         <motion.div 
           whileTap={{ scale: 0.98 }}
           onClick={() => navigate('/billing')}
@@ -162,73 +207,63 @@ export default function Profile() {
         <div className="absolute -right-4 -bottom-4 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform"></div>
       </motion.div>
 
-      <section className="space-y-3">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted px-4">Personal Details</h3>
-        <div className="grid gap-3">
-           <div className="card-bento py-4 flex flex-col gap-4">
-             <div className="flex px-4 items-center gap-4">
-               <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center">
-                 <User size={20} className="text-accent" />
-               </div>
-               <div className="flex flex-col">
-                 <span className="text-[10px] font-bold text-muted uppercase tracking-widest">Full Name</span>
-                 <span className="font-bold text-sm tracking-tight text-text">{user?.full_name || 'N/A'}</span>
-               </div>
-             </div>
-             
-             <div className="h-px bg-border/50 mx-4" />
-             
-             <div className="flex px-4 items-center gap-4">
-               <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                 <Mail size={20} className="text-primary" />
-               </div>
-               <div className="flex flex-col">
-                 <span className="text-[10px] font-bold text-muted uppercase tracking-widest">Email Address</span>
-                 <span className="font-bold text-sm tracking-tight text-text line-clamp-1">{user?.email || 'N/A'}</span>
-               </div>
-             </div>
-
-             <div className="h-px bg-border/50 mx-4" />
-             
-             <div className="flex px-4 items-center gap-4">
-               <div className="w-10 h-10 bg-warning/10 rounded-xl flex items-center justify-center">
-                 <MapPin size={20} className="text-warning" />
-               </div>
-               <div className="flex flex-col">
-                 <span className="text-[10px] font-bold text-muted uppercase tracking-widest">State / Region</span>
-                 <span className="font-bold text-sm tracking-tight text-text">{user?.state || 'N/A'}</span>
-               </div>
-             </div>
-           </div>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between px-2">
+          <h3 className="text-[12px] font-bold uppercase tracking-[0.2em] text-primary/60">Academic Profile</h3>
+          <Shield size={16} className="text-primary/20" />
+        </div>
+        
+        <div className="grid gap-4">
+          <div className="card-bento p-1 bg-white dark:bg-surface border-border shadow-sm overflow-hidden group">
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="p-5 border-b md:border-b-0 md:border-r border-border hover:bg-primary/5 transition-colors">
+                <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-1">Full Name</p>
+                <p className="font-bold text-text tracking-tight">{user?.full_name || 'N/A'}</p>
+              </div>
+              <div className="p-5 hover:bg-primary/5 transition-colors">
+                <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-1">Institution</p>
+                <p className="font-bold text-text tracking-tight">{user?.school || 'N/A'}</p>
+              </div>
+            </div>
+            <div className="border-t border-border grid grid-cols-1 md:grid-cols-2">
+              <div className="p-5 border-b md:border-b-0 md:border-r border-border hover:bg-primary/5 transition-colors">
+                <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-1">Department</p>
+                <p className="font-bold text-text tracking-tight">{user?.department || 'N/A'}</p>
+              </div>
+              <div className="p-5 hover:bg-primary/5 transition-colors">
+                <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-1">Current Level</p>
+                <p className="font-bold text-text tracking-tight flex items-center gap-2">
+                  {user?.level || 'N/A'} <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted px-4">Account</h3>
+      <section className="space-y-4">
+        <h3 className="text-[12px] font-bold uppercase tracking-[0.2em] text-primary/60 px-2">Account settings</h3>
         <div className="grid gap-3">
           {[
-            { icon: <GraduationCap size={20} className="text-primary"/>, label: "Academic Info", value: `${user?.level} Level`, color: "bg-primary/10" },
-            { icon: <Bell size={20} className="text-warning"/>, label: "Notifications", value: "Enabled", color: "bg-warning/10" },
-            { icon: <Shield size={20} className="text-success"/>, label: "Privacy", value: "Secure", color: "bg-success/10" },
+            { icon: <Bell size={18} />, label: "Notification Center", value: "Active", color: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+            { icon: <Shield size={18} />, label: "Security & Privacy", value: "Encrypted", color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+            { icon: <Settings size={18} />, label: "Study Preferences", value: "Balanced", color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" },
           ].map((item, i) => (
-            <div key={i} className="card-bento py-4 flex items-center justify-between group cursor-pointer hover:border-primary/30 transition-colors">
+            <button key={i} className="bg-white dark:bg-surface border border-border rounded-[24px] p-4 flex items-center justify-between group hover:shadow-md transition-all active:scale-[0.99] text-left">
               <div className="flex items-center gap-4">
                 <div className={`w-10 h-10 ${item.color} rounded-xl flex items-center justify-center`}>
                   {item.icon}
                 </div>
-                <span className="font-bold text-sm tracking-tight">{item.label}</span>
+                <span className="font-bold text-sm text-text tracking-tight">{item.label}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-muted">{item.value}</span>
-                <ChevronRight size={16} className="text-border group-hover:text-primary transition-colors" />
-              </div>
-            </div>
+              <ChevronRight size={16} className="text-muted group-hover:translate-x-1 transition-transform" />
+            </button>
           ))}
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted px-4">Preference</h3>
+      <section className="space-y-4">
+        <h3 className="text-[12px] font-bold uppercase tracking-[0.2em] text-primary/60 px-2">Support & Session</h3>
         <div className="grid gap-3">
           <button className="card-bento py-4 flex items-center justify-between text-left group hover:border-primary/30 transition-colors">
             <div className="flex items-center gap-4">

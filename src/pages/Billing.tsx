@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, Crown, Sparkles, Zap, Shield, Star } from 'lucide-react';
+import { ArrowLeft, Check, Sparkles, Zap, Shield, Crown, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../App';
 import { toast } from 'react-hot-toast';
@@ -8,173 +8,166 @@ import { toast } from 'react-hot-toast';
 export default function Billing() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
-
-  const subscriptionPlans = [
-    {
-      id: 'monthly',
-      name: 'Monthly Pass',
-      price: 2500,
-      period: 'month',
-      description: 'Flexible access for intensive study periods.',
-      features: [
-        'Unlimited AI Test generation',
-        'Full syllabus mapping',
-        'Detailed performance analytics',
-        'Remove all advertisements',
-        'Priority support'
-      ],
-      popular: false,
-      color: 'primary'
-    },
-    {
-      id: 'semester',
-      name: 'Semester Pro',
-      price: 10000,
-      period: 'semester',
-      description: 'The best value for a complete academic semester.',
-      features: [
-        'Everything in Monthly',
-        'Full 4-month access',
-        'Save ₦2,000 vs monthly',
-        'Early access to beta tools',
-        'Exclusive premium badges'
-      ],
-      popular: true,
-      color: 'accent'
-    }
-  ];
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'semester'>('semester');
 
   const handleMonnifyPayment = (amount: number, description: string) => {
     toast.success(`Redirecting to Monnify for ${description}...`);
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background dark:bg-dark-background text-text dark:text-dark-text pb-24 overflow-x-hidden">
-      {/* Header */}
-      <header className="relative pt-8 pb-16 px-6">
-        <div className="w-full flex items-center justify-between relative z-10 px-4 sm:px-6 xl:px-8">
-          <button 
-            onClick={() => navigate('/profile')}
-            className="group flex items-center gap-2 text-sm font-bold bg-surface dark:bg-dark-surface p-2 px-4 rounded-2xl border border-border dark:border-dark-border shadow-sm hover:border-primary/50 transition-all"
-          >
-            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-            <span>Profile</span>
-          </button>
-          <div className="flex flex-col items-center">
-             <h1 className="text-sm font-black uppercase tracking-[0.3em] text-primary opacity-80">Membership</h1>
-          </div>
-          <div className="w-[88px]"></div> 
-        </div>
+    <div className="min-h-[100dvh] bg-[#EDF7F7] pb-24 font-sans selection:bg-[#0D4C50]/10 overflow-x-hidden">
+      {/* Background Decorative Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-white/40 blur-[120px]" />
+        <div className="absolute bottom-[20%] right-[-10%] w-[30%] h-[50%] rounded-full bg-[#D1EDED]/50 blur-[100px]" />
+        
+        {/* Stripes background like in the inspiration */}
+        <div className="absolute inset-0 opacity-[0.05]" 
+          style={{ 
+            backgroundImage: `linear-gradient(90deg, #0D4C50 1px, transparent 1px)`,
+            backgroundSize: '100px 100%',
+            maskImage: 'linear-gradient(to bottom, black, transparent)' 
+          }} 
+        />
+      </div>
 
-        <div className="flex flex-col items-center mt-12 relative z-10 text-center">
-          <motion.div 
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-20 h-20 bg-primary/10 rounded-[32px] flex items-center justify-center mb-6 relative"
-          >
-            <Crown size={40} className="text-primary" fill="currentColor" />
-            <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent rounded-full flex items-center justify-center text-white border-2 border-background">
-               <Sparkles size={12} fill="currentColor" />
-            </div>
-          </motion.div>
-          <h2 className="text-4xl font-black tracking-tight leading-tight">Pick Your Path</h2>
-          <p className="text-muted text-sm mt-3 font-medium max-w-sm mx-auto leading-relaxed">
-            Choose between flexible monthly access or a full semester boost to fuel your studies.
+      <header className="relative pt-12 pb-8 px-6 text-center z-10">
+        <button 
+          onClick={() => navigate('/profile')}
+          className="absolute left-6 top-10 group flex items-center justify-center w-10 h-10 rounded-full bg-white shadow-sm border border-[#0D4C50]/5 hover:bg-[#0D4C50] hover:text-white transition-all duration-300"
+        >
+          <ArrowLeft size={20} />
+        </button>
+
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="space-y-4"
+        >
+          <h1 className="text-[32px] md:text-[48px] font-bold tracking-tight text-[#1A2E35] leading-tight flex items-center justify-center gap-3">
+            Simple & Flexible <span className="text-[#0D4C50]">Pricing</span>
+          </h1>
+          <p className="text-[#5E717D] text-sm md:text-base max-w-xl mx-auto font-medium">
+            Choose the plan that fits your academic goals and study pace. No hidden fees.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-primary/15 via-background to-transparent -z-10 blur-[120px] opacity-60"></div>
-      </header>
-
-      <main className="w-full px-4 sm:px-6 xl:px-8">
-        <div className="grid md:grid-cols-2 gap-8 items-stretch pt-4">
-          {subscriptionPlans.map((plan) => (
-            <motion.div 
-              key={plan.id}
-              whileHover={{ y: -6 }}
-              className={`card-bento p-8 md:p-12 flex flex-col relative overflow-hidden transition-all border-2 ${
-                plan.id === 'semester' 
-                  ? "border-accent shadow-2xl shadow-accent/10 bg-surface dark:bg-dark-surface" 
-                  : "border-primary/20 bg-surface/50 dark:bg-dark-surface/50"
+        {/* Toggle Billing */}
+        <div className="mt-12 flex justify-center">
+          <div className="p-1 bg-white rounded-full shadow-sm flex items-center border border-[#0D4C50]/10">
+            <button 
+              onClick={() => setBillingCycle('monthly')}
+              className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${
+                billingCycle === 'monthly' 
+                  ? 'bg-[#0D4C50] text-white shadow-lg' 
+                  : 'text-[#5E717D] hover:text-[#0D4C50]'
               }`}
             >
-              {/* Background Accent Image */}
-              <img 
-                src={`https://picsum.photos/seed/plan-${plan.id}/800/800?blur=4`} 
-                alt="" 
-                className="absolute inset-0 w-full h-full object-cover opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
-                referrerPolicy="no-referrer"
-              />
-              
-              {plan.id === 'semester' && (
-                <div className="absolute top-0 right-0 bg-accent text-white text-[10px] font-black uppercase px-6 py-2 rounded-bl-3xl tracking-widest">
-                  Best Value
+              Monthly Billing
+            </button>
+            <button 
+              onClick={() => setBillingCycle('semester')}
+              className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${
+                billingCycle === 'semester' 
+                  ? 'bg-[#0D4C50] text-white shadow-lg' 
+                  : 'text-[#5E717D] hover:text-[#0D4C50]'
+              }`}
+            >
+              Semester Billing
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-6 mt-8 relative z-10 flex justify-center">
+        <div className="w-full max-w-md">
+          {/* Premium Plan (Featured) */}
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#0D4C50] rounded-[32px] p-8 md:p-10 shadow-2xl shadow-[#0D4C50]/20 relative overflow-hidden text-white lg:py-14"
+          >
+            {/* Decoration */}
+            <div className="absolute top-[-50px] right-[-50px] w-40 h-40 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="flex justify-between items-start mb-10">
+              <div>
+                <h3 className="text-[24px] font-bold tracking-tight">Premium</h3>
+                <p className="text-white/60 text-sm font-medium mt-1">Full power study experience</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10">
+                <span className="text-[11px] font-black uppercase tracking-widest text-white">Most Popular</span>
+              </div>
+            </div>
+
+            <div className="mb-10">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={billingCycle}
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -10, opacity: 0 }}
+                  className="flex items-baseline"
+                >
+                  <span className="text-[54px] font-bold tracking-tighter">
+                    ₦{billingCycle === 'monthly' ? '2,000' : '5,000'}
+                  </span>
+                  <span className="text-white/60 font-bold text-base ml-2">
+                    / {billingCycle === 'monthly' ? 'month' : 'semester'}
+                  </span>
+                </motion.div>
+              </AnimatePresence>
+              {billingCycle === 'semester' && (
+                <div className="mt-2 inline-flex bg-success/20 text-success-foreground px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-success/30">
+                  Save 40%
                 </div>
               )}
-              
-              <div className="mb-10">
-                <h3 className={`text-3xl font-black italic mb-2 ${plan.popular ? "text-accent" : "text-primary"}`}>
-                  {plan.name}
-                </h3>
-                <p className="text-sm text-muted font-medium">{plan.description}</p>
-                <div className="mt-8 flex items-baseline gap-2">
-                   <span className="text-5xl font-black tracking-tighter">₦{plan.price.toLocaleString()}</span>
-                   <span className="text-muted font-bold">/ {plan.period}</span>
-                </div>
-              </div>
+            </div>
 
-              <div className="space-y-4 flex-1">
-                <div className="w-full h-px opacity-10 bg-current border-dashed border-t mb-6"></div>
-                {plan.features.map((feature, i) => (
-                  <div key={i} className="flex items-center gap-4 group">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      plan.popular ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary"
-                    }`}>
-                      <Check size={14} strokeWidth={3} />
-                    </div>
-                    <span className="text-sm font-bold tracking-tight opacity-80 group-hover:opacity-100 transition-opacity">{feature}</span>
+            <div className="space-y-4 mb-12">
+              {[
+                'Unlimited AI Test Generation',
+                'Full Syllabus Mapping',
+                '24/7 AI Smart Study Assistant',
+                'Performance & Progress Analytics',
+                'PDF & Document Analysis (Notes to Tests)',
+                'Priority AI Response Times',
+                'Early Access to New Features',
+                'Ad-free Study Environment'
+              ].map((f) => (
+                <div key={f} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-white">
+                    <Check size={12} strokeWidth={3} />
                   </div>
-                ))}
-              </div>
+                  <span className="text-[15px] font-semibold text-white/90">{f}</span>
+                </div>
+              ))}
+            </div>
 
-              <button 
-                onClick={() => handleMonnifyPayment(plan.price, plan.name)}
-                className={`mt-12 w-full py-5 rounded-[24px] font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 ${
-                  plan.popular 
-                    ? "bg-accent text-white shadow-accent/30 hover:bg-accent/90" 
-                    : "bg-primary text-white shadow-primary/30 hover:bg-primary/90"
-                }`}
-              >
-                Enroll in {plan.name} <Zap size={16} fill="currentColor" />
-              </button>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Global Footer */}
-        <div className="flex flex-col items-center text-center space-y-10 py-24">
-          <div className="space-y-4">
-             <button className="group relative">
-               <span className="text-sm font-black text-text dark:text-dark-text opacity-70 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                 <Shield size={16} /> Already paid? Refresh Subscription Status
-               </span>
-               <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-primary transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-             </button>
-             <p className="text-[10px] text-muted font-bold uppercase tracking-[0.3em] leading-relaxed max-w-sm">
-               Payments secured by <span className="text-text dark:text-white underline decoration-primary decoration-4 underline-offset-4">Monnify</span>
-             </p>
-          </div>
-
-          <div className="flex flex-wrap justify-center items-center gap-10 opacity-30 grayscale saturate-0 pointer-events-none">
-             <div className="font-black text-xs italic">Auchi Poly Accredited</div>
-             <div className="font-black text-xs italic">Secured by Monnify</div>
-             <div className="font-black text-xs italic">Kortex © 2026</div>
-          </div>
+            <button 
+              onClick={() => handleMonnifyPayment(billingCycle === 'monthly' ? 2000 : 5000, `Premium ${billingCycle}`)}
+              className="w-full py-4 rounded-full bg-white text-[#0D4C50] font-black text-sm uppercase tracking-widest shadow-xl shadow-black/10 hover:bg-[#F3F4F6] transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              Get Started <Zap size={16} fill="currentColor" />
+            </button>
+          </motion.div>
         </div>
       </main>
+
+        {/* Security / FAQ hint */}
+        <section className="mt-20 text-center pb-20">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-[#0D4C50]/5 shadow-sm mb-6">
+            <Shield size={16} className="text-[#0D4C50]" />
+            <span className="text-[12px] font-bold text-[#5E717D] uppercase tracking-wider">Payments Secured by Monnify</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-8 opacity-40">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em]">Auchi Poly Accredited</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em]">Kortex © 2026</div>
+          </div>
+        </section>
     </div>
   );
 }
+
 
 

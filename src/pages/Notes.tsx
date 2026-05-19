@@ -35,13 +35,13 @@ import type { Note } from '../types';
 import { toast } from 'react-hot-toast';
 
 const COLORS = [
-  { name: 'Default', bg: 'bg-surface', hex: 'var(--color-surface)' },
-  { name: 'Purple', bg: 'bg-[#D1C4E9] dark:bg-[#4527A0]/30', hex: '#D1C4E9' },
-  { name: 'Green', bg: 'bg-[#C8E6C9] dark:bg-[#2E7D32]/30', hex: '#C8E6C9' },
-  { name: 'Blue', bg: 'bg-[#BBDEFB] dark:bg-[#1565C0]/30', hex: '#BBDEFB' },
-  { name: 'Orange', bg: 'bg-[#FFE0B2] dark:bg-[#E65100]/30', hex: '#FFE0B2' },
-  { name: 'Red', bg: 'bg-[#FFCDD2] dark:bg-[#C62828]/30', hex: '#FFCDD2' },
-  { name: 'Teal', bg: 'bg-[#B2DFDB] dark:bg-[#00695C]/30', hex: '#B2DFDB' },
+  { name: 'Default', bg: 'bg-surface text-text', hex: 'var(--color-surface)' },
+  { name: 'Purple', bg: 'bg-purple-100 dark:bg-purple-900/30 text-purple-950 dark:text-purple-50', hex: '#D1C4E9' },
+  { name: 'Green', bg: 'bg-green-100 dark:bg-green-900/30 text-green-950 dark:text-green-50', hex: '#C8E6C9' },
+  { name: 'Blue', bg: 'bg-blue-100 dark:bg-blue-900/30 text-blue-950 dark:text-blue-50', hex: '#BBDEFB' },
+  { name: 'Orange', bg: 'bg-orange-100 dark:bg-orange-900/30 text-orange-950 dark:text-orange-50', hex: '#FFE0B2' },
+  { name: 'Red', bg: 'bg-red-100 dark:bg-red-900/30 text-red-950 dark:text-red-50', hex: '#FFCDD2' },
+  { name: 'Teal', bg: 'bg-teal-100 dark:bg-teal-900/30 text-teal-950 dark:text-teal-50', hex: '#B2DFDB' },
 ];
 
 const TAGS = ['#All', '#Work', '#Personal', '#Fitness', '#Study', '#Inspiration'];
@@ -86,8 +86,7 @@ export default function Notes() {
 
     const q = query(
       collection(db, 'notes'),
-      where('userId', '==', user.id),
-      orderBy('updatedAt', 'desc')
+      where('userId', '==', user.id)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -95,6 +94,13 @@ export default function Notes() {
         id: doc.id,
         ...doc.data()
       })) as Note[];
+      
+      notesData.sort((a, b) => {
+        const timeA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : Date.parse(a.updatedAt || '0');
+        const timeB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : Date.parse(b.updatedAt || '0');
+        return timeB - timeA;
+      });
+      
       setNotes(notesData);
       setLoading(false);
     }, (error) => {
@@ -244,7 +250,6 @@ export default function Notes() {
   };
 
   const courseTags = ["#All", ...courses.map(c => `#${c.code}`)];
-  const isDefaultColor = selectedColor === COLORS[0].hex;
 
   const filteredNotes = notes.filter(note => {
     const matchesSearch = note.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -320,7 +325,6 @@ export default function Notes() {
         ) : filteredNotes.length > 0 ? (
           filteredNotes.map((note, index) => {
             const colorObj = COLORS.find(c => c.hex === note.color) || COLORS[0];
-            const isNoteDefaultColor = colorObj.hex === COLORS[0].hex;
             
             return (
               <motion.div
@@ -336,19 +340,18 @@ export default function Notes() {
                   hover:shadow-lg hover:-translate-y-1 transition-all
                   ${colorObj.bg}
                   ${index % 3 === 0 ? 'aspect-[4/5]' : 'aspect-square'}
-                  ${isNoteDefaultColor ? 'text-text' : 'text-black'}
                 `}
               >
                 <div>
                    <div className="flex items-center justify-between mb-3">
-                      <h3 className={`text-sm font-bold leading-tight line-clamp-1 ${isNoteDefaultColor ? 'text-text/80' : 'text-black/80'}`}>{note.title}</h3>
-                      {note.isLocked && <Lock size={14} className={isNoteDefaultColor ? "text-text/40" : "text-black/40"} />}
+                      <h3 className="text-sm font-bold leading-tight line-clamp-1 opacity-90">{note.title}</h3>
+                      {note.isLocked && <Lock size={14} className="opacity-40" />}
                    </div>
-                   <div className={`text-xs leading-relaxed line-clamp-4 ${isNoteDefaultColor ? 'text-text/60' : 'text-black/60'}`}>
+                   <div className="text-xs leading-relaxed line-clamp-4 opacity-75">
                      {note.isLocked ? "This note is locked." : (
                        note.content.split('\n').map((line, i) => (
                          line.startsWith('![Image]') ? (
-                           <span key={i} className={`text-[10px] font-bold block p-1 rounded mt-1 ${isNoteDefaultColor ? 'bg-text/10' : 'bg-black/10'}`}>📸 Attached Photo</span>
+                           <span key={i} className="text-[10px] font-bold block p-1 rounded mt-1 bg-black/5 dark:bg-white/10">📸 Attached Photo</span>
                          ) : <span key={i}>{line} </span>
                        ))
                      )}
@@ -356,11 +359,11 @@ export default function Notes() {
                 </div>
                 
                 <div className="flex items-center justify-between mt-4">
-                   <p className={`text-[9px] font-black uppercase tracking-widest ${isNoteDefaultColor ? 'text-text/40' : 'text-black/40'}`}>
+                   <p className="text-[9px] font-black uppercase tracking-widest opacity-50">
                      {new Date(note.updatedAt?.toDate()).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
                    </p>
-                   <div className={`w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${isNoteDefaultColor ? 'bg-text/5' : 'bg-black/5'}`}>
-                      <Edit3 size={14} className={isNoteDefaultColor ? 'text-text/60' : 'text-black/60'} />
+                   <div className="w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 dark:bg-white/10">
+                      <Edit3 size={14} className="opacity-60" />
                    </div>
                 </div>
 
@@ -432,11 +435,10 @@ export default function Notes() {
               animate={{ 
                 scale: 1, 
                 y: 0,
-                backgroundColor: selectedColor,
               }}
               exit={{ scale: 0.9, y: 50 }}
               transition={{ duration: 0.3 }}
-              className={`w-full max-w-xl h-full max-h-[95vh] rounded-[40px] shadow-2xl flex flex-col overflow-hidden relative ${selectedColor === COLORS[0].hex ? 'text-text' : 'text-black'}`}
+              className={`w-full max-w-xl h-full max-h-[95vh] rounded-[40px] shadow-2xl flex flex-col overflow-hidden relative ${COLORS.find(c => c.hex === selectedColor)?.bg || COLORS[0].bg}`}
             >
               {/* Voice Listening Overlay */}
               <AnimatePresence>
@@ -456,10 +458,10 @@ export default function Notes() {
               </AnimatePresence>
 
               {/* Toolbar */}
-              <div className={`flex items-center justify-between p-6 border-b ${isDefaultColor ? 'border-text/5' : 'border-black/5'}`}>
+              <div className="flex items-center justify-between p-6 border-b border-black/5 dark:border-white/5">
                 <button 
                   onClick={() => setIsEditorOpen(false)}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isDefaultColor ? 'hover:bg-text/5' : 'hover:bg-black/5'}`}
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                 >
                   <X size={20} />
                 </button>
@@ -488,15 +490,15 @@ export default function Notes() {
                     placeholder="Note title..."
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className={`w-full text-3xl font-black tracking-tight outline-none bg-transparent ${isDefaultColor ? 'placeholder:text-text/20' : 'placeholder:text-black/20'}`}
+                    className="w-full text-3xl font-black tracking-tight outline-none bg-transparent placeholder:opacity-40"
                  />
                  <div className="flex items-center gap-4">
-                    <p className={`text-[10px] font-bold uppercase tracking-widest ${isDefaultColor ? 'text-text/40' : 'text-black/40'}`}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">
                     {new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'long' })}
                     </p>
                     <div className="flex gap-1">
                       {selectedTags.map(t => (
-                        <span key={t} className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${isDefaultColor ? 'bg-text/10' : 'bg-black/10'}`}>{t}</span>
+                        <span key={t} className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-black/5 dark:bg-white/10">{t}</span>
                       ))}
                     </div>
                  </div>
@@ -516,18 +518,18 @@ export default function Notes() {
                           const images = prev.match(/!\[Image\].*?\n/g) || [];
                           return images.join('') + e.target.value;
                         })}
-                        className={`w-full flex-1 text-base leading-loose outline-none bg-transparent resize-none ${isDefaultColor ? 'placeholder:text-text/20' : 'placeholder:text-black/20'}`}
+                        className="w-full flex-1 text-base leading-loose outline-none bg-transparent resize-none placeholder:opacity-40"
                     />
                  </div>
               </div>
 
               {/* Format Drawer */}
-              <div className={`p-6 border-t rounded-t-[40px] ${isDefaultColor ? 'bg-text/5 border-text/5' : 'bg-black/5 border-black/5'}`}>
+              <div className="p-6 border-t rounded-t-[40px] bg-black/5 border-black/5 dark:bg-white/5 dark:border-white/5">
                  <div className="flex flex-col gap-5">
                     {/* Color selection */}
                     <div className="flex items-center gap-3 overflow-x-auto hide-scrollbar sm:pb-1">
-                       <div className={`p-2.5 rounded-xl ${isDefaultColor ? 'bg-text/5' : 'bg-black/5'}`}>
-                          <Palette size={18} className={isDefaultColor ? 'text-text/60' : 'text-black/60'} />
+                       <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5">
+                          <Palette size={18} className="opacity-60" />
                        </div>
                        {COLORS.map(c => (
                          <button
@@ -535,7 +537,7 @@ export default function Notes() {
                            onClick={() => setSelectedColor(c.hex)}
                            className={`
                              w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center shadow-sm
-                             ${selectedColor === c.hex ? 'border-primary ring-2 ring-primary/20 scale-110' : 'border-background'}
+                             ${selectedColor === c.hex ? 'border-primary ring-2 ring-primary/20 scale-110' : 'border-black/5 dark:border-white/5'}
                            `}
                            style={{ backgroundColor: c.hex }}
                          >
@@ -546,8 +548,8 @@ export default function Notes() {
 
                     {/* Tags selection (Courses) */}
                     <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar sm:pb-1">
-                       <div className={`p-2.5 rounded-xl ${isDefaultColor ? 'bg-text/5' : 'bg-black/5'}`}>
-                          <TagIcon size={18} className={isDefaultColor ? 'text-text/60' : 'text-black/60'} />
+                       <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5">
+                          <TagIcon size={18} className="opacity-60" />
                        </div>
                        {courseTags.slice(1).map(tag => (
                          <button
@@ -557,7 +559,7 @@ export default function Notes() {
                              px-4 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border
                              ${selectedTags.includes(tag) 
                                ? 'bg-primary text-white border-primary shadow-sm' 
-                               : isDefaultColor ? 'bg-surface text-text/60 border-border' : 'bg-white/50 text-black/60 border-black/10'
+                               : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/5 opacity-80 hover:opacity-100'
                              }
                            `}
                          >
@@ -567,29 +569,29 @@ export default function Notes() {
                     </div>
 
                     {/* Action methods */}
-                    <div className={`flex items-center justify-between pt-2 border-t ${isDefaultColor ? 'border-text/5' : 'border-black/5'}`}>
+                    <div className="flex items-center justify-between pt-2 border-t border-black/5 dark:border-white/5">
                        <div className="flex gap-2">
                           <button 
                             onClick={startVoiceToText}
-                            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all transition-colors ${isDefaultColor ? 'bg-text/5 text-text/60' : 'bg-black/5 text-black/60'} hover:bg-primary hover:text-white`}
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all bg-black/5 dark:bg-white/5 opacity-80 hover:bg-primary hover:text-white"
                           >
                              <Mic size={20} />
                           </button>
                           <button 
                              onClick={() => document.getElementById('imageUpload')?.click()}
-                             className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all transition-colors ${isDefaultColor ? 'bg-text/5 text-text/60' : 'bg-black/5 text-black/60'} hover:bg-primary hover:text-white`}
+                             className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all bg-black/5 dark:bg-white/5 opacity-80 hover:bg-primary hover:text-white"
                           >
                              <ImageIcon size={20} />
                           </button>
                        </div>
                        
                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isLocked ? 'bg-orange-500 text-white' : isDefaultColor ? 'bg-text/5 text-text/40' : 'bg-black/5 text-black/40'}`}>
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isLocked ? 'bg-orange-500 text-white' : 'bg-black/5 dark:bg-white/5 opacity-70'}`}>
                              <Lock size={18} />
                           </div>
                           <button 
                             onClick={() => setIsLocked(!isLocked)}
-                            className={`w-12 h-6 rounded-full relative transition-colors ${isLocked ? 'bg-orange-500' : isDefaultColor ? 'bg-text/20 bg-muted/20' : 'bg-black/10'}`}
+                            className={`w-12 h-6 rounded-full relative transition-colors ${isLocked ? 'bg-orange-500' : 'bg-black/10 dark:bg-white/10'}`}
                           >
                               <motion.div 
                                 animate={{ x: isLocked ? 24 : 4 }}

@@ -7,19 +7,27 @@ import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import MainLayout from './layouts/MainLayout';
 import type { UserProfile } from './types';
+import LoadingScreen from './components/LoadingScreen';
 
 const Home = lazy(() => import('./pages/Home'));
 const Library = lazy(() => import('./pages/Library'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Study = lazy(() => import('./pages/Study'));
 const Auth = lazy(() => import('./pages/Auth'));
-const Admin = lazy(() => import('./pages/Admin'));
-const Practice = lazy(() => import('./pages/Practice'));
-const PracticeSession = lazy(() => import('./pages/PracticeSession'));
+const Analytics = lazy(() => import('./pages/Analytics'));
 const Notes = lazy(() => import('./pages/Notes'));
 const Chat = lazy(() => import('./pages/Chat'));
 const Course = lazy(() => import('./pages/Course'));
 const Billing = lazy(() => import('./pages/Billing'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+
+const AdminRedirect = () => {
+  useEffect(() => {
+    window.location.href = 'https://admin.kortexai.online';
+  }, []);
+  return <LoadingScreen />;
+};
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -43,8 +51,19 @@ export const useAuth = () => useContext(AuthContext);
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
   const [simulatedRole, setSimulatedRole] = useState<'admin' | 'student'>('admin');
+
+  // Enforce minimum splash screen duration
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 2800); // Wait for the whole animation (dots -> merge -> logo) to have time to finish
+    return () => clearTimeout(timer);
+  }, []);
+
+  const loading = !(dataLoaded && minTimeElapsed);
 
   const fetchProfile = (id: string) => {
     const docRef = doc(db, 'users', id);
@@ -81,7 +100,7 @@ export default function App() {
         }
 
         setUser(profile);
-        setLoading(false);
+        setDataLoaded(true);
         
         if (requiresUpdate) {
           try {
@@ -95,11 +114,11 @@ export default function App() {
         }
       } else {
         // Initial setup might be writing, ignore or default
-        setLoading(false);
+        setDataLoaded(true);
       }
     }, (error) => {
       console.error("Error fetching profile", error);
-      setLoading(false);
+      setDataLoaded(true);
     });
 
     return unsubscribeProfile;
@@ -113,7 +132,7 @@ export default function App() {
         unsubscribeProfile = fetchProfile(firebaseUser.uid);
       } else {
         setUser(null);
-        setLoading(false);
+        setDataLoaded(true);
         if (unsubscribeProfile) {
           unsubscribeProfile();
         }
@@ -157,30 +176,24 @@ export default function App() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-background dark:bg-dark-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
     <AuthContext.Provider value={{ user, loading, signOut, refreshProfile, simulatedRole, setSimulatedRole }}>
       <BrowserRouter>
-        <Suspense fallback={
-          <div className="min-h-[100dvh] flex items-center justify-center bg-background dark:bg-dark-background">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-          </div>
-        }>
+        <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route path="/auth" element={!user ? <Auth /> : <Navigate to="/" />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route element={user ? <MainLayout /> : <Navigate to="/auth" />}>
               <Route path="/" element={<Home />} />
               <Route path="/library" element={<Library />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/admin" element={<Admin />} />
+              <Route path="/admin" element={<AdminRedirect />} />
               <Route path="/course/:courseId" element={<Course />} />
-              <Route path="/practice/:courseId" element={<PracticeSession />} />
+              <Route path="/analytics" element={<Analytics />} />
               <Route path="/notes" element={<Notes />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/billing" element={<Billing />} />

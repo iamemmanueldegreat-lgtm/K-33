@@ -1,14 +1,35 @@
-export const EDO_STATE_SCHOOLS = [
-  'Auchi Polytechnic',
-  'University of Benin (UNIBEN)',
-  'Ambrose Alli University (AAU)',
-  'Edo State University Uzairue',
-  'Benson Idahosa University (BIU)',
-  'Igbinedion University',
-  'Samuel Adegboyega University',
-  'Wellspring University',
-  'Edo State Polytechnic Usen'
-];
+export const NIGERIAN_SCHOOLS: Record<string, string[]> = {
+  'Lagos': ['University of Lagos (UNILAG)', 'Lagos State University (LASU)', 'Yaba College of Technology (YABATECH)', 'Pan-Atlantic University'],
+  'Abuja (FCT)': ['University of Abuja (UNIABUJA)', 'Baze University', 'Nile University of Nigeria', 'Veritas University'],
+  'Rivers': ['University of Port Harcourt (UNIPORT)', 'Rivers State University (RSU)', 'Ignatius Ajuru University of Education'],
+  'Oyo': ['University of Ibadan (UI)', 'Ladoke Akintola University of Technology (LAUTECH)', 'Lead City University'],
+  'Kaduna': ['Ahmadu Bello University (ABU)', 'Kaduna State University (KASU)', 'Nigerian Defence Academy (NDA)'],
+  'Kano': ['Bayero University Kano (BUK)', 'Kano University of Science and Technology (KUST)'],
+  'Enugu': ['University of Nigeria, Nsukka (UNN)', 'Enugu State University of Science and Technology (ESUT)'],
+  'Delta': ['Delta State University (DELSU)', 'Federal University of Petroleum Resources (FUPRE)'],
+  'Edo': [
+    'Auchi Polytechnic',
+    'University of Benin (UNIBEN)',
+    'Ambrose Alli University (AAU)',
+    'Edo State University Uzairue',
+    'Benson Idahosa University (BIU)',
+    'Igbinedion University',
+    'Samuel Adegboyega University',
+    'Wellspring University',
+    'Edo State Polytechnic Usen'
+  ],
+  'Anambra': ['Nnamdi Azikiwe University (UNIZIK)', 'Chukwuemeka Odumegwu Ojukwu University'],
+  'Ogun': ['Federal University of Agriculture, Abeokuta (FUNAAB)', 'Olabisi Onabanjo University (OOU)', 'Covenant University', 'Babcock University'],
+  'Ondo': ['Federal University of Technology Akure (FUTA)', 'Adekunle Ajasin University (AAUA)'],
+  'Kwara': ['University of Ilorin (UNILORIN)', 'Kwara State University (KWASU)'],
+  'Plateau': ['University of Jos (UNIJOS)', 'Plateau State University'],
+  'Bauchi': ['Abubakar Tafawa Balewa University (ATBU)', 'Bauchi State University'],
+  'Sokoto': ['Usmanu Danfodiyo University (UDUSOK)', 'Sokoto State University'],
+  'Imo': ['Federal University of Technology Owerri (FUTO)', 'Imo State University (IMSU)'],
+  'Abia': ['Michael Okpara University of Agriculture (MOUAU)', 'Abia State University (ABSU)']
+};
+
+export const EDO_STATE_SCHOOLS = NIGERIAN_SCHOOLS['Edo'];
 
 export const AUCHI_POLY_DEPARTMENTS = [
   'General',
@@ -28,15 +49,35 @@ export const AUCHI_POLY_DEPARTMENTS = [
   'Public Administration'
 ];
 
-// For other schools, we can just use a standard list or allow typing
 export const STANDARD_DEPARTMENTS = [
   'General',
-  'Computer Science',
+  'Accounting',
+  'Agriculture',
+  'Architecture',
+  'Biochemistry',
   'Business Administration',
-  'Accountancy',
-  'Mass Communication',
-  'Engineering',
+  'Chemical Engineering',
+  'Civil Engineering',
+  'Computer Science',
+  'Economics',
+  'Education',
+  'Electrical Engineering',
+  'English Language',
+  'Estate Management',
+  'Finance',
+  'History',
+  'Information Technology',
   'Law',
-  'Medicine',
-  'Architecture'
+  'Mass Communication',
+  'Mathematics',
+  'Mechanical Engineering',
+  'Medicine and Surgery',
+  'Microbiology',
+  'Nursing',
+  'Pharmacy',
+  'Physics',
+  'Political Science',
+  'Public Administration',
+  'Sociology',
+  'Statistics'
 ];

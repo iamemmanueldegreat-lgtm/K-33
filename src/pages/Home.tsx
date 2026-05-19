@@ -116,46 +116,45 @@ export default function Home() {
       {/* Daily Streak Banner */}
       <div 
         onClick={() => navigate('/profile')}
-        className="bg-surface dark:bg-dark-surface rounded-[24px] p-4 shadow-sm border border-border dark:border-dark-border cursor-pointer hover:shadow-md transition-all group lg:mb-8"
+        className="bg-surface rounded-[24px] p-5 shadow-sm border border-border cursor-pointer hover:shadow-md transition-all group lg:mb-8"
       >
         {/* Header: Title and Total Days */}
-        <div className="flex items-center justify-between mb-4 px-1">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🔥</span>
-            <h3 className="font-semibold text-text dark:text-dark-text text-sm tracking-tight">Daily Streak</h3>
+        <div className="flex items-center justify-between mb-5 px-1">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🔥</span>
+            <h3 className="font-bold text-text text-sm tracking-tight">Daily Streak</h3>
           </div>
-          <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
+          <span className="text-[11px] font-black text-slate-800 dark:text-white bg-slate-100 dark:bg-white/10 px-3 py-1.5 rounded-full border border-slate-200 dark:border-white/20 tracking-widest uppercase">
             {user?.streak || 0} days
           </span>
         </div>
 
         {/* Days Row */}
-        <div className="flex justify-between items-center gap-1">
+        <div className="flex justify-between items-center gap-1.5">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => {
             const today = new Date();
             const todayIdx = (today.getDay() + 6) % 7; // Mon=0, Sun=6
             const isCompleted = idx <= todayIdx && (todayIdx - idx) < (user?.streak || 0);
             
             return (
-              <div key={day} className="flex flex-col items-center gap-2 flex-1">
+              <div key={day} className="flex flex-col items-center gap-2.5 flex-1">
                 <div 
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                  className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300 ${
                     isCompleted 
-                      ? "bg-primary/10 dark:bg-primary/20 text-primary scale-105 shadow-sm" 
-                      : "bg-gray-100 dark:bg-gray-800/80 text-transparent"
+                      ? "bg-primary/20 text-primary scale-105 shadow-sm" 
+                      : "bg-white dark:bg-background border-2 border-slate-400 dark:border-white/10"
                   }`}
                 >
-                  {isCompleted && (
+                  {isCompleted ? (
                     <svg className="w-5 h-5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                  )}
-                  {!isCompleted && (
-                    <div className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400" />
+                  ) : (
+                    <div className="w-3 h-3 rounded-full bg-slate-900 dark:bg-white" />
                   )}
                 </div>
-                <span className={`text-[10px] font-semibold tracking-wide uppercase ${
-                  isCompleted ? "text-primary dark:text-primary" : "text-gray-500 dark:text-gray-400"
+                <span className={`text-[9px] font-black tracking-[0.1em] uppercase ${
+                  isCompleted ? "text-primary dark:text-primary" : "text-primary dark:text-slate-300"
                 }`}>
                   {day}
                 </span>
@@ -167,21 +166,7 @@ export default function Home() {
 
       {/* Main Action Bento Grid */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Top Full Width Card */}
-        <div 
-          onClick={() => navigate('/practice')}
-          className="col-span-2 bg-gradient-to-br from-[#3B82F6] to-[#6366F1] text-white rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm md:min-h-[160px] min-h-[140px] flex flex-col justify-center group"
-        >
-          <div className="relative z-10 w-2/3">
-            <p className="text-[10px] font-medium opacity-80 mb-1 outline-none">Test your knowledge</p>
-            <h3 className="text-xl font-bold leading-tight group-hover:translate-x-1 transition-transform">Practice Zone</h3>
-          </div>
-          <div className="absolute right-0 bottom-0 top-0 w-1/2 flex items-center justify-end pr-4 text-white/5 group-hover:text-white/10 transition-colors">
-            <MessageSquare size={100} strokeWidth={1} className="translate-y-4" />
-          </div>
-        </div>
-
-        {/* Bottom Left Card */}
+        {/* My Courses Card */}
         <div onClick={() => navigate('/library')} className="bg-surface border border-border text-text rounded-[24px] p-4 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:border-primary/30 transition-colors">
           <div className="relative z-10">
             <p className="text-[10px] font-medium text-muted mb-1">{recentCourses.length || '0'} active</p>
@@ -190,14 +175,37 @@ export default function Home() {
           <BookOpen size={64} className="absolute bottom-2 right-2 text-border group-hover:scale-110 transition-transform" />
         </div>
 
-        {/* Bottom Right Card */}
-        <div onClick={() => navigate('/notes')} className="bg-purple-50 dark:bg-[#1F1A2E] border border-purple-100 dark:border-[#1F1A2E] text-text rounded-[24px] p-4 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:border-purple-200 dark:hover:border-[#2D2640] transition-colors">
+        {/* Notes Card */}
+        <div onClick={() => navigate('/notes')} className="bg-[#FAF5FF] dark:bg-[#FAF5FF]/10 border border-purple-200/50 rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:shadow-md transition-all">
           <div className="relative z-10">
-            <p className="text-[10px] font-medium text-purple-600/70 dark:text-purple-300/50 mb-1">Jot down your</p>
-            <h3 className="text-lg font-bold leading-tight group-hover:translate-x-1 transition-transform text-purple-900 dark:text-purple-100">Notes</h3>
+            <p className="text-[10px] font-bold text-purple-600/70 dark:text-purple-400 uppercase tracking-widest mb-1.5">Jot down your</p>
+            <h3 className="text-xl font-bold leading-tight group-hover:translate-x-1 transition-transform text-purple-900 dark:text-purple-100">Notes</h3>
           </div>
-          <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-purple-200/50 dark:bg-purple-900/20 rounded-full blur-xl group-hover:bg-purple-300/50 dark:group-hover:bg-purple-900/30 transition-colors"></div>
-          <FileText size={64} className="absolute bottom-2 right-2 text-purple-200 dark:text-purple-900/40 group-hover:scale-110 transition-transform" />
+          <div className="absolute -bottom-6 -right-6 w-36 h-36 bg-purple-200/40 rounded-full blur-2xl group-hover:bg-purple-300/50 transition-colors"></div>
+          <FileText size={72} strokeWidth={1.5} className="absolute bottom-1 right-1 text-purple-200 dark:text-purple-400 group-hover:scale-110 transition-all duration-500 opacity-80" />
+        </div>
+
+        {/* AI Chat Card */}
+        <div 
+          onClick={() => navigate('/chat')}
+          className="bg-gradient-to-br from-[#3B82F6] to-[#6366F1] text-white rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group"
+        >
+          <div className="relative z-10">
+            <p className="text-[10px] font-medium opacity-80 mb-1 outline-none">Ask questions</p>
+            <h3 className="text-xl font-bold leading-tight group-hover:translate-x-1 transition-transform">AI Chat</h3>
+          </div>
+          <div className="absolute right-[-10px] bottom-[-10px] w-24 h-24 flex items-center justify-center text-white/10 group-hover:text-white/20 transition-colors">
+            <MessageSquare size={80} strokeWidth={1} />
+          </div>
+        </div>
+
+        {/* Analytics Card */}
+        <div onClick={() => navigate('/analytics')} className="bg-surface border border-border text-text rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:border-primary/30 transition-colors">
+          <div className="relative z-10">
+            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-1.5">Track your</p>
+            <h3 className="text-xl font-bold leading-tight group-hover:translate-x-1 transition-transform">Analytics</h3>
+          </div>
+          <BarChart2 size={64} strokeWidth={1.5} className="absolute bottom-2 right-2 text-primary/20 group-hover:scale-110 transition-all duration-500" />
         </div>
       </div>
 

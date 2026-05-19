@@ -9,6 +9,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, collection, getDocs, query, orderBy, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../App';
 import ThemeToggle from '../components/ThemeToggle';
+import PracticeQuiz from '../components/PracticeQuiz';
 import type { Topic } from '../types';
 
 export default function Study() {
@@ -280,9 +281,11 @@ export default function Study() {
                    </div>
                 )}
                 {activeTab === 'Practice' && (
-                   <div className="text-center py-20 text-muted">
-                     <p>Feature coming soon.</p>
-                   </div>
+                   <PracticeQuiz 
+                     courseTitle={titles.course} 
+                     courseCode={courseId || ''} 
+                     topicTitle={titles.topic} 
+                   />
                 )}
               </article>
             </motion.div>

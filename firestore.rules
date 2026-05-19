@@ -14,7 +14,11 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == 'alijiojisi73@gmail.com';
+      return isSignedIn() && (
+        request.auth.token.email == 'alijiojisi73@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.is_admin == true)
+      );
     }
 
     // Entity Validations (Phase 2 & 4 Blueprint)
@@ -64,8 +68,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      allow list: if false; // No blanket reads
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
 
       match /recent_views/{courseId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -91,7 +95,7 @@ service cloud.firestore {
     }
 
     match /courses/{courseId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       
       allow create: if isAdmin() && isValidId(courseId) && isValidCourse(incoming());
       
@@ -101,7 +105,7 @@ service cloud.firestore {
     }
 
     match /courses/{courseId}/topics/{topicId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       
       allow create: if isAdmin() && isValidId(courseId) && isValidId(topicId) && isValidTopic(incoming());
       
