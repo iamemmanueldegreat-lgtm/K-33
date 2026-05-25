@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2, WifiOff, CloudDownload, DownloadCloud, Sparkles, Check, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { generateStudyContent } from '../lib/gemini';
 import Markdown from 'react-markdown';
 import { toast } from 'react-hot-toast';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, getDocs, query, orderBy, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, orderBy, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../App';
 import ThemeToggle from '../components/ThemeToggle';
 import PracticeQuiz from '../components/PracticeQuiz';
@@ -17,12 +17,17 @@ export default function Study() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [content, setContent] = useState<string>('');
+  const [keyTakeaways, setKeyTakeaways] = useState<string>('');
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStep, setGenerationStep] = useState('');
   const [titles, setTitles] = useState({ course: '', topic: '' });
   const [topics, setTopics] = useState<Topic[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [topicsDropdownOpen, setTopicsDropdownOpen] = useState(false);
+  const [cacheStatus, setCacheStatus] = useState<'online-not-saved' | 'saving' | 'offline-cached' | 'offline-uncached'>('online-not-saved');
 
   // active tab
   const [activeTab, setActiveTab] = useState('Explanation');
@@ -47,34 +52,167 @@ export default function Study() {
     async function loadData() {
       if (!courseId || !topicId) return;
       setLoading(true);
-      try {
-        // Fetch course details
-        const courseDoc = await getDoc(doc(db, 'courses', courseId));
-        const courseTitle = courseDoc.exists() ? courseDoc.data().title : courseId;
-        
-        // Fetch all topics
-        const topicsSnapshot = await getDocs(collection(db, `courses/${courseId}/topics`));
-        const topicsData = topicsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Topic));
-        setTopics(topicsData);
+      setIsGenerating(false);
+      
+      const isOnline = navigator.onLine;
 
-        // Current topic data
-        const currentTopic = topicsData.find(t => t.id === topicId);
+      try {
+        // Step 1: Attempt to load from browser Local Storage (the download cache)
+        const localCacheKey = `offline_topic_${topicId}`;
+        const localCacheData = localStorage.getItem(localCacheKey);
+
+        // Fetch course details & topics (for sidebar list context if online, fallback from localStorage if offline)
+        let courseTitle = courseId;
+        let fetchedTopicsList: Topic[] = [];
+
+        if (isOnline) {
+          try {
+            const courseDoc = await getDoc(doc(db, 'courses', courseId));
+            if (courseDoc.exists()) {
+              courseTitle = courseDoc.data().title || courseId;
+              localStorage.setItem(`offline_course_title_${courseId}`, courseTitle);
+            }
+            
+            const topicsSnapshot = await getDocs(collection(db, `courses/${courseId}/topics`));
+            fetchedTopicsList = topicsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Topic));
+            localStorage.setItem(`offline_topics_list_${courseId}`, JSON.stringify(fetchedTopicsList));
+          } catch (fireErr) {
+            console.warn("Firestore fetch error, attempting local storage fallback for sidebar", fireErr);
+          }
+        }
+
+        // Sidebar Fallback for fully offline mode
+        if (fetchedTopicsList.length === 0) {
+          const storedTitle = localStorage.getItem(`offline_course_title_${courseId}`);
+          if (storedTitle) courseTitle = storedTitle;
+
+          const storedTopics = localStorage.getItem(`offline_topics_list_${courseId}`);
+          if (storedTopics) {
+            fetchedTopicsList = JSON.parse(storedTopics);
+          }
+        }
+        setTopics(fetchedTopicsList);
+
+        // Match current topic
+        const currentTopic = fetchedTopicsList.find(t => t.id === topicId);
         const topicTitle = currentTopic ? currentTopic.title : topicId;
-        
         setTitles({ course: courseTitle, topic: topicTitle });
 
-        // Set content
-        if (currentTopic && currentTopic.content) {
-          setContent(currentTopic.content);
-        } else {
-          setContent("> **Content Pending**\n\nThis content has not been generated yet. Please ask an admin to generate the explanation or check back later.");
+        // If cached offline, load instantly!
+        if (localCacheData) {
+          const parsedCache = JSON.parse(localCacheData);
+          setContent(parsedCache.content);
+          setKeyTakeaways(parsedCache.key_takeaways || '');
+          setQuizQuestions(parsedCache.quiz_questions || []);
+          setCacheStatus('offline-cached');
+          setLoading(false);
+          return;
         }
+
+        // Step 2: Since no local cache, check if Firestore holds pre-generated contents
+        if (isOnline && currentTopic) {
+          if (currentTopic.content) {
+            // Content exists on database backend! Save download cache locally
+            setContent(currentTopic.content);
+            const takeaways = currentTopic.key_takeaways || '';
+            setKeyTakeaways(takeaways);
+            
+            let parsedQuestions: any[] = [];
+            if (currentTopic.quiz_questions) {
+              try {
+                parsedQuestions = typeof currentTopic.quiz_questions === 'string' 
+                  ? JSON.parse(currentTopic.quiz_questions) 
+                  : currentTopic.quiz_questions;
+              } catch (pqErr) {
+                console.error("Error parsing quiz questions", pqErr);
+              }
+            }
+            setQuizQuestions(parsedQuestions);
+
+            // SAVE DOWNLOAD FOR OFFLINE
+            localStorage.setItem(localCacheKey, JSON.stringify({
+              content: currentTopic.content,
+              key_takeaways: takeaways,
+              quiz_questions: parsedQuestions
+            }));
+            
+            setCacheStatus('offline-cached');
+            setLoading(false);
+            return;
+          } else {
+            // No content in firestore, and online -> trigger on-demand generation!
+            setLoading(false);
+            setIsGenerating(true);
+            setGenerationStep("Analyzing topic syllabus outline...");
+
+            // Simulate progress step updates
+            const stepInterval = setInterval(() => {
+              const steps = [
+                "Deploying OpenAI educational researcher...",
+                "Writing rich study guide with local examples...",
+                "Synthesizing key takeaways and formulas...",
+                "Compiling multiple-choice active practice questions..."
+              ];
+              setGenerationStep(prev => {
+                const idx = steps.indexOf(prev);
+                return idx < steps.length - 1 ? steps[idx + 1] : prev;
+              });
+            }, 3000);
+
+            try {
+              toast.loading("Generating your customized lesson content...", { id: "generating-toast" });
+              const studyPackage = await generateStudyContent(topicTitle, courseTitle, "100L");
+              clearInterval(stepInterval);
+              
+              setGenerationStep("Writing content back to cloud storage...");
+              
+              setContent(studyPackage.content);
+              setKeyTakeaways(studyPackage.key_takeaways);
+              setQuizQuestions(studyPackage.quiz_questions);
+
+              // Update Firestore backend asynchronously (don't block the user if it fails or lags due to permissions)
+              try {
+                const topicRef = doc(db, `courses/${courseId}/topics`, topicId);
+                await updateDoc(topicRef, {
+                  content: studyPackage.content,
+                  key_takeaways: studyPackage.key_takeaways,
+                  quiz_questions: JSON.stringify(studyPackage.quiz_questions)
+                });
+              } catch (fsErr) {
+                console.error("Non-fatal Firestore write error (likely rules):", fsErr);
+              }
+
+              // DOWNLOAD & PERSIST OFFLINE
+              setGenerationStep("Downloading and caching local offline copy...");
+              localStorage.setItem(localCacheKey, JSON.stringify({
+                content: studyPackage.content,
+                key_takeaways: studyPackage.key_takeaways,
+                quiz_questions: studyPackage.quiz_questions
+              }));
+
+              setCacheStatus('offline-cached');
+              toast.success("Successfully generated & downloaded for offline access!", { id: "generating-toast" });
+            } catch (genErr: any) {
+              clearInterval(stepInterval);
+              toast.error(genErr.message || "Failed to generate on-demand study guide.", { id: "generating-toast" });
+              setContent("> **On-Demand Generation Failed**\n\nThere was an issue communicating with the AI. Please verify your internet connection or try reloading the page.");
+            } finally {
+              setIsGenerating(false);
+            }
+          }
+        } else {
+          // Uncached and offline: Cannot generate!
+          setContent("> **Offline Mode**\n\nThis topic has not been downloaded for offline viewing yet. Please connect to the internet to download and view this topic's study material anytime.");
+          setCacheStatus('offline-uncached');
+        }
+
       } catch (err: any) {
         toast.error(err.message);
       } finally {
         setLoading(false);
       }
     }
+
     loadData();
     // Auto-close sidebar on mobile when navigating
     if (window.innerWidth < 1024) {
@@ -186,6 +324,16 @@ export default function Study() {
             </button>
           </div>
           <div className="flex items-center gap-4 pointer-events-auto">
+            {cacheStatus === 'offline-cached' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                <Check size={12} className="stroke-[3]" /> Saved Offline
+              </span>
+            )}
+            {cacheStatus === 'offline-uncached' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
+                <WifiOff size={12} /> Uncached Offline
+              </span>
+            )}
             <ThemeToggle />
           </div>
         </header>
@@ -193,9 +341,30 @@ export default function Study() {
         {/* Content Wrapper */}
         <div className="w-full px-4 sm:px-6 xl:px-8 pb-24 pt-4">
           
-          {loading ? (
+          {isGenerating ? (
+            <div className="py-24 flex flex-col items-center justify-center max-w-xl mx-auto text-center gap-6">
+              <div className="relative">
+                <div className="w-24 h-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <Sparkles className="absolute inset-0 m-auto text-primary animate-pulse" size={28} />
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-2xl font-semibold tracking-tight">On-Demand AI Synthesis</h2>
+                <p className="text-muted text-sm">{generationStep}</p>
+              </div>
+              <div className="w-full bg-muted/30 h-1.5 rounded-full overflow-hidden mt-2">
+                <motion.div 
+                  className="h-full bg-primary rounded-full"
+                  animate={{ width: ["5%", "25%", "60%", "95%", "95%"] }}
+                  transition={{ duration: 15, ease: "easeInOut", repeat: Infinity }}
+                />
+              </div>
+              <p className="text-[11px] text-muted italic">
+                Generating explanations, takeaways, and interactive quizzes in one offline-download package using OpenAI...
+              </p>
+            </div>
+          ) : loading ? (
              <div className="py-32 flex flex-col items-center justify-center gap-6 animate-pulse">
-                <div className="w-16 h-16 border-4 border-[#4F46E5]/20 border-t-[#4F46E5] rounded-full animate-spin" />
+                <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
                 <p className="text-muted font-medium">Retrieving content...</p>
              </div>
           ) : (
@@ -273,19 +442,30 @@ export default function Study() {
                 marker:text-muted
               ">
                 {activeTab === 'Explanation' && (
-                   <Markdown>{content}</Markdown>
-                )}
-                {activeTab === 'Key Takeaways' && (
-                   <div className="text-center py-20 text-muted">
-                     <p>Feature coming soon.</p>
+                   <div className="animate-in fade-in duration-300">
+                     <Markdown>{content}</Markdown>
                    </div>
                 )}
+                {activeTab === 'Key Takeaways' && (
+                   keyTakeaways ? (
+                     <div className="animate-in fade-in duration-300">
+                       <Markdown>{keyTakeaways}</Markdown>
+                     </div>
+                   ) : (
+                     <div className="text-center py-20 text-muted">
+                       <p>No key takeaways found for this topic.</p>
+                     </div>
+                   )
+                )}
                 {activeTab === 'Practice' && (
-                   <PracticeQuiz 
-                     courseTitle={titles.course} 
-                     courseCode={courseId || ''} 
-                     topicTitle={titles.topic} 
-                   />
+                   <div className="animate-in fade-in duration-300">
+                     <PracticeQuiz 
+                       courseTitle={titles.course} 
+                       courseCode={courseId || ''} 
+                       topicTitle={titles.topic} 
+                       preGeneratedQuestions={quizQuestions}
+                     />
+                   </div>
                 )}
               </article>
             </motion.div>

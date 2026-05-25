@@ -18,11 +18,14 @@ import {
   Search,
   Image as ImageIcon,
   FolderClosed,
-  X
+  X,
+  Calendar,
+  BookOpen,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from '../lib/firebase';
-import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import Markdown from 'react-markdown';
 
 interface Message {
@@ -76,6 +79,37 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+const STUDENT_PROMPTS = [
+  {
+    icon: Sparkles,
+    title: "Explain a Concept",
+    description: "Deep dive into a difficult topic with active physical, real-world examples",
+    promptText: "Can you break down and explain a complex academic concept simply with real-world examples so I can grasp it instantly?",
+    color: "text-amber-500 bg-amber-500/10 border-amber-500/10"
+  },
+  {
+    icon: Calendar,
+    title: "Detailed Study Schedule",
+    description: "Help me organize a detailed 1-week prep schedule for upcoming exams",
+    promptText: "I have exams next week. Help me build a strategic, realistic day-by-day 1-week study plan to prepare efficiently.",
+    color: "text-blue-500 bg-blue-500/10 border-blue-500/10"
+  },
+  {
+    icon: BookOpen,
+    title: "Mock Practice Quiz",
+    description: "Test my learning with interactive multi-choice quiz questions",
+    promptText: "Give me an interactive 5-question multiple choice practice quiz on core academic topics with complete detailed feedback for answers.",
+    color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/10"
+  },
+  {
+    icon: PenSquare,
+    title: "Active Recall & Flashcards",
+    description: "Convert dry study materials into summarized key recall cards",
+    promptText: "Provide me with active recall study prompts, questions, and summarized bullet-point learning tables for study reviews.",
+    color: "text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/10"
+  }
+];
+
 export default function Chat() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -99,39 +133,59 @@ export default function Chat() {
   }, [messages, isTyping]);
 
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      
-      recognitionRef.current.onresult = (event: any) => {
-        let finalTranscript = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false; // continuous set to false runs best for inputting chat prompts
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          setIsRecording(true);
+        };
+
+        recognition.onresult = (event: any) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+            } else {
+              interimTranscript += transcript;
+            }
           }
-        }
-        
-        if (finalTranscript) {
-          setInput(prev => prev + (prev.endsWith(' ') || prev === '' ? '' : ' ') + finalTranscript);
-        }
-      };
-      
-      recognitionRef.current.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        setIsRecording(false);
-      };
-      
-      recognitionRef.current.onend = () => {
-        setIsRecording(false);
-      };
+
+          if (finalTranscript) {
+            setInput(prev => {
+              const cleaned = prev.trim();
+              return cleaned ? `${cleaned} ${finalTranscript.trim()}` : finalTranscript.trim();
+            });
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          setIsRecording(false);
+        };
+
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+      } catch (e) {
+        console.error("Speech recognition initialization failed:", e);
+      }
     }
     
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
       }
     };
   }, []);
@@ -165,6 +219,40 @@ export default function Chat() {
     };
     loadSessions();
   }, [user]);
+
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    if (!user) return;
+    
+    try {
+      // Optimistic update
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (currentSessionId === sessionId) {
+        startNewChat();
+      }
+      
+      const sessionRef = doc(db, 'chat_sessions', sessionId);
+      await deleteDoc(sessionRef);
+    } catch (error) {
+      console.error("Failed to delete session:", error);
+      // Reload on failure to ensure UI consistency
+      const q = query(
+        collection(db, 'chat_sessions'),
+        where('userId', '==', user.id)
+      );
+      const snapshot = await getDocs(q);
+      const loadedSessions = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ChatSession[];
+      loadedSessions.sort((a, b) => {
+        const timeA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : Date.parse(a.updatedAt || '0');
+        const timeB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : Date.parse(b.updatedAt || '0');
+        return timeB - timeA;
+      });
+      setSessions(loadedSessions);
+    }
+  };
 
   const saveMessageToSession = async (currentMessages: Message[], newMessage: Message, overrideSessionId?: string | null) => {
     if (!user) return null;
@@ -218,19 +306,24 @@ export default function Chat() {
   };
 
   const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      alert("Speech recognition is not supported or was blocked in this browser. Please make sure you are using Chrome, Safari or Edge and have granted microphone permissions.");
+      return;
+    }
+
     if (isRecording) {
-      recognitionRef.current?.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.error("Failed to stop SpeechRecognition:", e);
+      }
       setIsRecording(false);
     } else {
-      if (!recognitionRef.current) {
-        alert("Speech recognition is not supported in this browser.");
-        return;
-      }
       try {
         recognitionRef.current.start();
-        setIsRecording(true);
       } catch (e) {
-        console.error("Recording error", e);
+        console.error("Failed to start SpeechRecognition:", e);
+        setIsRecording(false);
       }
     }
   };
@@ -256,6 +349,7 @@ export default function Chat() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          model: 'flash',
           messages: validHistory.map(m => ({
             role: m.role === 'user' ? 'user' : 'assistant',
             content: m.parts[0].text
@@ -349,60 +443,79 @@ export default function Chat() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute left-0 top-0 bottom-0 w-[80%] max-w-sm z-50 bg-background border-r border-border flex flex-col"
+              className="absolute left-0 top-0 bottom-0 w-[85%] max-w-sm z-50 bg-[#F9FAFB] dark:bg-[#111318] border-r border-border shadow-2xl flex flex-col"
             >
-              <div className="flex items-center justify-between p-4 mb-2">
-                <h2 className="font-semibold text-lg">KortexAI</h2>
+              <div className="flex items-center justify-between p-5 mb-2">
                 <div className="flex items-center gap-2">
-                  <button className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface text-text transition-colors">
-                    <Search size={20} />
+                  <div className="w-8 h-8 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center">
+                    <Sparkles size={16} />
+                  </div>
+                  <h2 className="font-semibold text-lg tracking-tight">KortexAI</h2>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors">
+                    <Search size={18} />
                   </button>
-                  <button onClick={() => setIsSidebarOpen(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface text-text transition-colors">
-                    <X size={20} />
+                  <button onClick={() => setIsSidebarOpen(false)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 text-text transition-colors">
+                    <X size={18} />
                   </button>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-3">
-                <div className="space-y-1 mb-6">
-                  <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-surface text-sm font-medium transition-colors">
-                     <FolderClosed size={18} /> Projects
+              <div className="flex-1 overflow-y-auto px-4 py-2">
+                <div className="space-y-1.5 mb-8">
+                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-black/5 dark:hover:border-white/5 hover:shadow-sm text-sm font-medium transition-all text-text/90">
+                     <FolderClosed size={18} className="text-zinc-500" /> Projects
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-surface text-sm font-medium transition-colors">
-                     <ImageIcon size={18} /> Images
+                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-black/5 dark:hover:border-white/5 hover:shadow-sm text-sm font-medium transition-all text-text/90">
+                     <ImageIcon size={18} className="text-zinc-500" /> Images
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-surface text-sm font-medium transition-colors">
-                     <MoreHorizontal size={18} /> More
+                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-black/5 dark:hover:border-white/5 hover:shadow-sm text-sm font-medium transition-all text-text/90">
+                     <MoreHorizontal size={18} className="text-zinc-500" /> More
                   </button>
                 </div>
                 
-                <h3 className="px-3 text-xs font-semibold text-muted mb-2 uppercase tracking-wider">Recents</h3>
-                <div className="space-y-0.5">
+                <h3 className="px-4 text-[11px] font-black text-zinc-500 mb-3 uppercase tracking-widest">Recent Chats</h3>
+                <div className="space-y-1.5">
                   {sessions.length > 0 ? (
                     sessions.map((session) => (
-                      <button 
-                        key={session.id} 
-                        onClick={() => loadSession(session)} 
-                        className={`w-full text-left truncate px-3 py-3 rounded-xl hover:bg-surface text-sm transition-colors text-text/90 ${currentSessionId === session.id ? 'bg-surface' : ''}`}
+                      <div 
+                        key={session.id}
+                        className={`group relative flex items-center justify-between rounded-2xl hover:bg-white dark:hover:bg-white/5 hover:shadow-sm border border-transparent hover:border-black/5 dark:hover:border-white/5 transition-all ${
+                          currentSessionId === session.id ? 'bg-white dark:bg-white/5 shadow-sm border-black/5 dark:border-white/5' : ''
+                        }`}
                       >
-                        {session.title}
-                      </button>
+                        <button 
+                          onClick={() => loadSession(session)} 
+                          className="flex-1 flex items-center gap-3 text-left truncate pl-4 pr-12 py-3 text-sm text-text/90 cursor-pointer"
+                        >
+                          <MessageSquare size={16} className="text-zinc-400 flex-shrink-0" />
+                          <span className="truncate">{session.title}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteSession(e, session.id)}
+                          className="absolute right-3 p-2 rounded-xl text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all cursor-pointer z-10"
+                          title="Delete Chat"
+                          aria-label="Delete Chat"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-muted">No recent chats</div>
+                    <div className="px-4 py-3 text-sm text-zinc-500 bg-white/50 dark:bg-white/5 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">No recent chats</div>
                   )}
                 </div>
               </div>
 
-              <div className="p-4 border-t border-border">
+              <div className="p-5">
                 <button 
                   onClick={startNewChat}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-text text-background rounded-full hover:opacity-90 font-medium transition-opacity"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-black dark:bg-white text-white dark:text-black rounded-2xl hover:scale-[1.02] active:scale-[0.98] shadow-md font-bold transition-all"
                 >
-                  <div className="flex items-center gap-2">
-                    <PenSquare size={18} />
-                    <span>New chat</span>
-                  </div>
+                  <PenSquare size={18} />
+                  <span>Start New Chat</span>
                 </button>
               </div>
             </motion.div>
@@ -451,23 +564,8 @@ export default function Chat() {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 w-full space-y-6 pt-4 pb-32">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 mt-[-10vh]">
-             <div className="w-16 h-16 bg-surface border border-border rounded-full flex items-center justify-center mb-6 shadow-sm">
-                <Sparkles size={28} className="text-primary" />
-             </div>
-             <h2 className="text-xl font-medium mb-10 text-text/80">How can I help you today?</h2>
-             
-             {/* Quick Actions Placeholder similar to ChatGPT */}
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg mx-auto pointer-events-none opacity-50 hidden sm:grid">
-                <div className="p-4 border border-border rounded-2xl flex flex-col items-start text-left bg-surface/30">
-                   <ImageIcon size={18} className="mb-2 text-text/60" />
-                   <p className="text-sm font-medium">Create an image</p>
-                </div>
-                <div className="p-4 border border-border rounded-2xl flex flex-col items-start text-left bg-surface/30">
-                   <PenSquare size={18} className="mb-2 text-text/60" />
-                   <p className="text-sm font-medium">Write or edit</p>
-                </div>
-             </div>
+          <div className="h-full flex flex-col items-center justify-center text-center p-6">
+             <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-neutral-50 tracking-tight font-sans">How can I help you today?</h2>
           </div>
         ) : (
           messages.map((msg, idx) => {
@@ -522,21 +620,24 @@ export default function Chat() {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 bg-gradient-to-t from-background via-background to-transparent pt-10 pointer-events-none">
+      <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 bg-gradient-to-t from-background via-background to-transparent pt-12 pointer-events-none">
         
         {messages.length === 0 && (
-          <div className="w-full px-4 sm:px-6 mb-4 pointer-events-auto">
-            <div className="flex flex-col items-start space-y-2.5 max-w-[220px]">
-              <button className="w-full flex items-center gap-3 text-sm font-medium text-text hover:bg-surface px-4 py-2.5 bg-surface/80 backdrop-blur shadow-sm border border-border/50 rounded-full transition-colors">
-                <ImageIcon size={18} className="text-text/80" /> Create an image
-              </button>
-              <button className="w-full flex items-center gap-3 text-sm font-medium text-text hover:bg-surface px-4 py-2.5 bg-surface/80 backdrop-blur shadow-sm border border-border/50 rounded-full transition-colors">
-                <PenSquare size={18} className="text-text/80" /> Write or edit
-              </button>
-              <button className="w-full flex items-center gap-3 text-sm font-medium text-text hover:bg-surface px-4 py-2.5 bg-surface/80 backdrop-blur shadow-sm border border-border/50 rounded-full transition-colors">
-                <Search size={18} className="text-text/80" /> Look something up
-              </button>
-            </div>
+          <div className="w-full px-4 sm:px-6 mb-3 pointer-events-auto overflow-x-auto sm:overflow-x-visible pb-2 sm:pb-0 scrollbar-none whitespace-nowrap flex sm:flex-wrap gap-2 justify-start sm:justify-center">
+            {STUDENT_PROMPTS.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setInput(item.promptText)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 shadow-sm text-xs font-bold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-zinc-850 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <Icon size={14} className="text-neutral-500" />
+                  <span>{item.title}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 

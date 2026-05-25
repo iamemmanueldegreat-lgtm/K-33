@@ -1,47 +1,132 @@
 import { useState, useEffect } from 'react';
-import { Search, BookOpen, ChevronRight, Wand2, CheckCircle2 } from 'lucide-react';
+import { Search, Star, ArrowUpRight, BookOpen, Layers, Users, Calendar, Plus, ChevronDown, Book, Award, Library as LibraryIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query } from 'firebase/firestore';
 import { useAuth } from '../App';
 import type { Course, Topic } from '../types';
-import { generateStudyContent } from '../lib/gemini';
-import toast from 'react-hot-toast';
+
+// The 4 pastel colors, star colors, hand-crafted overlay brush strokes and metadata matching screenshot 2.
+const CHAPTER_THEMES = [
+  {
+    bg: 'bg-[#FFECAA]',
+    fill: '#FFECAA',
+    border: 'border-[#FFD43B]/60',
+    starColor: 'text-[#E8590C]',
+    doodleColor: 'stroke-[#E8590C]/10',
+    badge: 'Comprehensive Guide'
+  },
+  {
+    bg: 'bg-[#D1EBE3]',
+    fill: '#D1EBE3',
+    border: 'border-[#38D9A9]/60',
+    starColor: 'text-[#099268]',
+    doodleColor: 'stroke-[#099268]/10',
+    badge: 'Interactive Quiz'
+  },
+  {
+    bg: 'bg-[#E5D4F5]',
+    fill: '#E5D4F5',
+    border: 'border-[#B197FC]/60',
+    starColor: 'text-[#7048E8]',
+    doodleColor: 'stroke-[#7048E8]/10',
+    badge: 'AI Study Chat'
+  },
+  {
+    bg: 'bg-[#FFD1DF]',
+    fill: '#FFD1DF',
+    border: 'border-[#FAA2C1]/60',
+    starColor: 'text-[#D6336C]',
+    doodleColor: 'stroke-[#D6336C]/10',
+    badge: 'Practice & Prep'
+  }
+];
+
+// Memory caches across SPA transitions to make navigating back and forth instant
+const globalCoursesCacheByUserId: Record<string, Course[]> = {};
+const lastSelectedCourseIdByUserId: Record<string, string> = {};
+
+// Helper to classify course codes into First/Second semester dynamically
+const getCourseSemester = (course: Course): 'First Semester' | 'Second Semester' => {
+  const digits = course.code.replace(/\D/g, '');
+  if (digits.length > 0) {
+    const lastDigit = parseInt(digits[digits.length - 1], 10);
+    return lastDigit % 2 === 1 ? 'First Semester' : 'Second Semester';
+  }
+  return course.title.length % 2 === 1 ? 'First Semester' : 'Second Semester';
+};
 
 export default function Library() {
   const { user } = useAuth();
+  const userId = user?.id || 'anonymous';
+
+  // Synchronously retrieve cached courses from memory or localStorage
+  const cached = useState(() => {
+    if (globalCoursesCacheByUserId[userId]) {
+      return globalCoursesCacheByUserId[userId];
+    }
+    try {
+      const stored = localStorage.getItem(`courses_cache_${userId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Course[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          globalCoursesCacheByUserId[userId] = parsed;
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse courses cache from localStorage', e);
+    }
+    return null;
+  })[0];
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [generatingTopicId, setGeneratingTopicId] = useState<string | null>(null);
+  const [selectedSemester, setSelectedSemester] = useState<'First Semester' | 'Second Semester'>('First Semester');
+  const [courses, setCourses] = useState<Course[]>(cached || []);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(() => {
+    if (cached && cached.length > 0) {
+      const lastId = lastSelectedCourseIdByUserId[userId];
+      const match = cached.find(c => c.id === lastId);
+      return match || cached[0];
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!cached);
   const navigate = useNavigate();
+
+  // Synchronously keep selectedCourse valid for the active semester filter
+  useEffect(() => {
+    if (courses.length > 0) {
+      const semCourses = courses.filter(c => getCourseSemester(c) === selectedSemester);
+      if (semCourses.length > 0) {
+        const isCurrentInSem = semCourses.some(c => c.id === selectedCourse?.id);
+        if (!isCurrentInSem) {
+          setSelectedCourse(semCourses[0]);
+          lastSelectedCourseIdByUserId[userId] = semCourses[0].id;
+        }
+      } else {
+        setSelectedCourse(null);
+      }
+    }
+  }, [selectedSemester, courses, userId]);
 
   useEffect(() => {
     if (user) {
-      fetchCourses();
+      // If we have cached copies, do a silent background refresh without loading skeleton
+      const showLoading = !cached || cached.length === 0;
+      fetchCourses(showLoading);
     }
-  }, [user]);
+  }, [user, userId]);
 
-  const fetchCourses = async () => {
-    setLoading(true);
+  const fetchCourses = async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
-      let q = query(collection(db, 'courses'));
-      
-      if (!user?.is_admin) {
-        // Fetch courses for the student's school that match their department OR are 'General'
-        const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
-        q = query(
-          collection(db, 'courses'),
-          where('school', '==', user?.school),
-          where('department', 'in', departments)
-        );
-      }
-      
+      const q = query(collection(db, 'courses'));
       const querySnapshot = await getDocs(q);
       
-      // Filter by level in memory to maintain flexibility without complex Firestore composite indexes
       let coursesData = querySnapshot.docs.map((docSnapshot) => {
         const course = docSnapshot.data() as Course;
         course.id = docSnapshot.id;
@@ -49,8 +134,11 @@ export default function Library() {
       });
 
       if (!user?.is_admin) {
+        const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
         coursesData = coursesData.filter(c => 
-          c.level === user?.level || c.level === 'All Levels' || !c.level
+          c.school === user?.school &&
+          departments.includes(c.department) &&
+          (c.level === user?.level || c.level === 'All Levels' || !c.level)
         );
       }
       
@@ -69,45 +157,80 @@ export default function Library() {
       });
       
       const finalCourses = await Promise.all(coursesPromises);
+      
+      // Update caches
+      globalCoursesCacheByUserId[userId] = finalCourses;
+      try {
+        localStorage.setItem(`courses_cache_${userId}`, JSON.stringify(finalCourses));
+      } catch (e) {
+        console.warn('Storage quota exceeded or disabled', e);
+      }
+
       setCourses(finalCourses);
+      
+      // Keep previously selected course active if possible, otherwise select first available
+      setSelectedCourse((prev) => {
+        if (finalCourses.length === 0) return null;
+        const currentActiveId = prev?.id || lastSelectedCourseIdByUserId[userId];
+        const match = finalCourses.find(c => c.id === currentActiveId);
+        const next = match || finalCourses[0];
+        if (next) {
+          lastSelectedCourseIdByUserId[userId] = next.id;
+        }
+        return next;
+      });
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, 'courses');
+      // Gracefully handle/suppress errors if a cached copy already exists to keep page highly available
+      if (cached && cached.length > 0) {
+        console.warn('Failed to fetch courses in background; serving cached version.', error);
+      } else {
+        handleFirestoreError(error, OperationType.LIST, 'courses');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGenerateContent = async (e: React.MouseEvent, course: Course, topic: Topic) => {
-    e.stopPropagation();
-    if (generatingTopicId) return;
+  // Extract chapters or fallback to awesome templates
+  const getCourseChapters = (course: Course | null) => {
+    if (!course) return [];
     
-    setGeneratingTopicId(topic.id);
-    try {
-      toast.success('Generating topic content...');
-      const text = await generateStudyContent(topic.title, course.title, course.level);
-      
-      await updateDoc(doc(db, `courses/${course.id}/topics`, topic.id), {
-        content: text
-      });
-      
-      toast.success('Generated successfully!');
-      
-      // Update local state
-      setCourses(prev => prev.map(c => {
-        if (c.id === course.id) {
-          return {
-            ...c,
-            topics: c.topics.map(t => t.id === topic.id ? { ...t, content: text } : t)
-          };
+    // Group course.topics by chapter, preserving order
+    const chaptersMap: Record<string, Topic[]> = {};
+    if (course.topics && course.topics.length > 0) {
+      course.topics.forEach(topic => {
+        const chapterName = topic.chapter || 'Foundations';
+        if (!chaptersMap[chapterName]) {
+          chaptersMap[chapterName] = [];
         }
-        return c;
-      }));
-    } catch (error) {
-      toast.error('Failed to generate content');
-      handleFirestoreError(error, OperationType.UPDATE, `courses/${course.id}/topics/${topic.id}`);
-    } finally {
-      setGeneratingTopicId(null);
+        chaptersMap[chapterName].push(topic);
+      });
     }
+
+    const chaptersList = Object.keys(chaptersMap).map((name, idx) => {
+      return {
+        name,
+        order: chaptersMap[name][0]?.chapter_order ?? (idx + 1),
+        topics: chaptersMap[name].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      };
+    });
+
+    chaptersList.sort((a, b) => a.order - b.order);
+
+    // Ensure we always have at least 4 glorious visual cards as shown in screenshot 2 (Culture, History, Math, Literature style)
+    const baseNames = ['Culture', 'History', 'Math', 'Literature'];
+    const chapters = [...chaptersList];
+
+    while (chapters.length < 4) {
+      const fallbackName = baseNames[chapters.length] || `Chapter ${chapters.length + 1}`;
+      chapters.push({
+        name: fallbackName,
+        order: chapters.length + 1,
+        topics: []
+      });
+    }
+
+    return chapters;
   };
 
   const filteredCourses = courses.filter(c => 
@@ -115,64 +238,251 @@ export default function Library() {
     c.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  return (
-    <div className="space-y-6">
-      <header>
-        <span className="badge-blue">Academic Resources</span>
-        <h2 className="text-3xl font-bold tracking-tight mt-2">Course Library</h2>
-        <p className="text-muted text-sm mt-1">Master your curriculum for {user?.department} - {user?.level}</p>
-      </header>
+  const semesterCourses = filteredCourses.filter(c => getCourseSemester(c) === selectedSemester);
 
+  const CARD_ROTATIONS = [
+    'hover:rotate-0 hover:scale-[1.03] rotate-[-1.5deg] hover:shadow-lg transition-all duration-300',
+    'hover:rotate-0 hover:scale-[1.03] rotate-[1.5deg] hover:shadow-lg transition-all duration-300',
+    'hover:rotate-0 hover:scale-[1.02] rotate-[-1deg] hover:shadow-lg transition-all duration-300',
+    'hover:rotate-0 hover:scale-[1.03] rotate-[2deg] hover:shadow-lg transition-all duration-300'
+  ];
+
+  const CHAPTER_STAMPS = [Layers, Award, BookOpen, Calendar];
+
+  const getActiveChapters = () => {
+    if (selectedCourse) {
+      return getCourseChapters(selectedCourse).map((ch, idx) => ({
+        ...ch,
+        courseCode: selectedCourse.code,
+        courseId: selectedCourse.id,
+        index: idx
+      }));
+    } else {
+      const combined: Array<{ name: string; order: number; topics: Topic[]; courseCode: string; courseId: string; index: number }> = [];
+      let globalIdx = 0;
+      semesterCourses.forEach(c => {
+        const chaptersList = getCourseChapters(c);
+        chaptersList.forEach(ch => {
+          combined.push({
+            ...ch,
+            courseCode: c.code,
+            courseId: c.id,
+            index: globalIdx++
+          });
+        });
+      });
+      return combined;
+    }
+  };
+
+  return (
+    <div className="space-y-6 w-full max-w-4xl mx-auto pb-16 px-4 pt-4">
+      {/* Your Courses Head and Library button */}
+      <div className="flex items-center justify-between mt-2">
+        <h1 className="text-4xl sm:text-5xl font-black font-sans tracking-tight text-neutral-900 dark:text-neutral-50 animate-fade-in">
+          Your Courses
+        </h1>
+        <button 
+          onClick={() => {
+            const el = document.getElementById('librarySearchInput');
+            if (el) el.focus();
+          }}
+          className="w-12 h-12 rounded-[20px] bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 flex items-center justify-center hover:bg-neutral-50 dark:hover:bg-zinc-850 active:scale-95 transition-all shadow-sm"
+        >
+          <LibraryIcon size={22} className="text-neutral-900 dark:text-white stroke-[2]" />
+        </button>
+      </div>
+
+      {/* Search Input Filter */}
       <div className="relative group">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-primary transition-colors" size={18} />
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-zinc-600 dark:group-focus-within:text-zinc-200 transition-colors" />
         <input 
+          id="librarySearchInput"
           type="text" 
-          placeholder="Search courses or codes..." 
-          className="input-field pl-12"
+          placeholder="Search course codes or title..."
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full h-11 pl-11 pr-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-neutral-100 dark:border-zinc-800 outline-none focus:border-zinc-300 dark:focus:border-zinc-700 transition-all text-xs font-semibold"
         />
       </div>
 
+      {/* Dropdown Menu (Semester selectors) and Grid Layout Toggler */}
+      <div className="flex items-center justify-between pt-1">
+        <div className="relative inline-block w-48">
+          <select
+            value={selectedSemester}
+            onChange={(e) => {
+              const sem = e.target.value as 'First Semester' | 'Second Semester';
+              setSelectedSemester(sem);
+              setSearchTerm('');
+            }}
+            className="w-full appearance-none bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl py-2.5 pl-4 pr-10 text-xs font-black text-neutral-850 dark:text-neutral-100 focus:outline-none cursor-pointer"
+          >
+            <option value="First Semester">First Semester</option>
+            <option value="Second Semester">Second Semester</option>
+          </select>
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+            <ChevronDown size={14} className="stroke-[3]" />
+          </div>
+        </div>
+
+        {/* Layout indicator */}
+        <div className="flex items-center gap-1.5 text-zinc-400 dark:text-zinc-650">
+          <button className="p-2 sm:p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" />
+            </svg>
+          </button>
+          <button className="p-2 sm:p-2.5 rounded-xl text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Horizontally scrolling pill buttons for com 111, MTH 111 under selectedSemester */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-3 -mx-2 px-2 whitespace-nowrap scroll-smooth">
+         <button
+          onClick={() => {
+            setSelectedCourse(null);
+          }}
+          className={`px-5 py-2 rounded-full text-xs font-black tracking-wider uppercase whitespace-nowrap transition-all border ${
+            selectedCourse === null 
+              ? 'bg-purple-600 text-white border-transparent shadow-md scale-105' 
+              : 'bg-white dark:bg-zinc-950 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800'
+          }`}
+        >
+          #All
+        </button>
+
+        {semesterCourses.map(course => {
+          const isSelected = selectedCourse?.id === course.id;
+          return (
+            <button
+              key={course.id}
+              onClick={() => {
+                setSelectedCourse(course);
+                lastSelectedCourseIdByUserId[userId] = course.id;
+              }}
+              className={`
+                px-5 py-2 rounded-full text-xs font-black tracking-wider uppercase whitespace-nowrap transition-all border
+                ${isSelected 
+                  ? 'bg-purple-600 text-white border-transparent shadow-md scale-105 font-black' 
+                  : 'bg-white dark:bg-zinc-950 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800'
+                }
+              `}
+            >
+              #{course.code.toUpperCase()}
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
-        <div className="space-y-4">
-            <div className="h-20 bg-surface animate-pulse rounded-[24px]"></div>
-            <div className="h-20 bg-surface animate-pulse rounded-[24px]"></div>
+        <div className="grid grid-cols-2 gap-4 sm:gap-6 mt-4">
+          <div className="h-52 bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-[32px]"></div>
+          <div className="h-52 bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-[32px]"></div>
+          <div className="h-52 bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-[32px]"></div>
+          <div className="h-52 bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-[32px]"></div>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {filteredCourses.map((course) => (
-            <div key={course.id} className="card-bento p-0 overflow-hidden group">
-              <button 
-                onClick={() => navigate(`/course/${course.id}`)}
-                className="w-full p-5 flex items-center justify-between text-left transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-300 overflow-hidden">
-                    <img 
-                      src={`https://picsum.photos/seed/lib-${course.id}/400/400`} 
-                      alt={course.title} 
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 filter grayscale group-hover:grayscale-0 opacity-80 group-hover:opacity-100" 
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-primary tracking-widest uppercase mb-0.5">{course.code}</p>
-                    <h4 className="font-bold text-lg leading-tight">{course.title}</h4>
-                  </div>
-                </div>
-                <div className="p-2 rounded-lg bg-background border border-border group-hover:bg-primary group-hover:border-primary group-hover:text-white transition-all">
-                  <ChevronRight size={18} />
-                </div>
-              </button>
-            </div>
-          ))}
+        <div className="space-y-6 pt-2">
+          {getActiveChapters().length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 auto-rows-min mt-2 pb-12">
+              {getActiveChapters().map((chapter, index) => {
+                const theme = CHAPTER_THEMES[index % CHAPTER_THEMES.length];
+                const rotationClass = CARD_ROTATIONS[index % CARD_ROTATIONS.length];
+                const StampIcon = CHAPTER_STAMPS[index % CHAPTER_STAMPS.length];
+                
+                const topicsCount = chapter.topics?.length ?? 0;
+                const excerpt = topicsCount > 0 
+                  ? `Master all ${topicsCount} high-yield topics, complete diagnostic practice quizzes, and connect with real-time AI tutors.`
+                  : `Review core chapter definitions, summary cheat sheets, custom practice quizzes, and instant AI tutor answers.`;
 
-          {filteredCourses.length === 0 && (
-            <div className="text-center py-20 opacity-50 card-bento !bg-transparent border-dashed">
-              <BookOpen size={48} className="mx-auto mb-4 text-muted" />
-              <p className="font-bold">No courses found</p>
-              <p className="text-sm border-t border-border mt-2 pt-2">Check back later or ask an admin to add courses for {user?.department} - {user?.level}.</p>
+                return (
+                  <motion.div
+                    key={`${chapter.courseId}-${chapter.name}`}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.04 }}
+                    onClick={() => navigate(`/course/${chapter.courseId}?chapter=${encodeURIComponent(chapter.name)}`)}
+                    className={`
+                      relative cursor-pointer group h-52 sm:h-60 p-5 sm:p-6 rounded-[28px] sm:rounded-[32px] 
+                      flex flex-col justify-between overflow-hidden border border-black/5 dark:border-none shadow-sm
+                      ${theme.bg} ${rotationClass}
+                    `}
+                  >
+                    {/* Doodle stroke overlay matching screenshot 2 */}
+                    <div className="absolute inset-x-4 top-4 bottom-16 opacity-30 pointer-events-none">
+                      <svg className="w-full h-full" viewBox="0 0 100 135" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M 20,25 C 60,15 75,35 45,55 C 15,75 80,75 50,105" className={theme.doodleColor} />
+                      </svg>
+                    </div>
+
+                    {/* Top part: Star icon inside rounded bubble white container on the left */}
+                    <div className="flex justify-between items-start w-full relative z-10">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white flex items-center justify-center shadow-sm">
+                        <Star className={`w-4 h-4 ${theme.starColor} fill-current`} />
+                      </div>
+
+                      {/* Course code label indicators if inside #All view */}
+                      {selectedCourse === null && (
+                        <span className="text-[9px] font-black font-mono tracking-wider bg-black/10 text-neutral-900 px-2 py-0.5 rounded-full uppercase">
+                          {chapter.courseCode}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Middle part: Title of chapter and subtitle */}
+                    <div className="space-y-1 sm:space-y-1.5 relative z-10 flex-1 flex flex-col justify-center select-none pt-2">
+                      <span className="text-[9px] sm:text-[10px] font-black tracking-widest uppercase text-black/40 block font-mono">
+                        Chapter {chapter.order ?? (index + 1)}
+                      </span>
+                      <h3 className="text-[13px] sm:text-[20px] font-black text-neutral-900 leading-tight font-sans tracking-tight line-clamp-2 leading-none group-hover:text-black transition-colors">
+                        {chapter.name}
+                      </h3>
+                      <p className="text-[9px] sm:text-[12px] font-semibold leading-normal text-neutral-800/60 line-clamp-2">
+                        {excerpt}
+                      </p>
+                    </div>
+
+                    {/* Lower part: stamp on left, academic badge on right */}
+                    <div className="flex items-center justify-between border-t border-black/5 pt-1.5 sm:pt-2 relative z-10 mt-auto">
+                      <div className="w-5 h-5 sm:w-6.5 sm:h-6.5 rounded-full bg-black/5 flex items-center justify-center text-[#111827]/70">
+                        <StampIcon className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
+                      </div>
+                      
+                      <div className="flex items-center gap-1 bg-white/20 dark:bg-black/10 px-2 py-0.5 rounded-md border border-black/5">
+                        <span className="w-1 h-1 rounded-full bg-emerald-600"></span>
+                        <span className="text-[7.5px] sm:text-[9px] font-black tracking-widest uppercase text-neutral-800/60 font-mono">
+                          {theme.badge}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bite notch cutout decorative elements on bottom-right or top-right as from Screenshot 2 */}
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 sm:w-5 h-10 sm:h-12 flex items-center pointer-events-none z-10 opacity-70">
+                      <svg className="absolute inset-0 w-full h-full text-white dark:text-[#0B0F19] fill-current" viewBox="0 0 32 80" preserveAspectRatio="none">
+                        <path d="M 32,0 C 32,18 14,18 14,40 C 14,62 32,62 32,80 Z" />
+                      </svg>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-neutral-50 dark:bg-zinc-950 rounded-[32px] border border-dashed border-neutral-300 dark:border-zinc-800">
+              <BookOpen size={44} className="mx-auto mb-4 text-zinc-400" />
+              <p className="font-bold text-base">No chapters found for {selectedSemester}</p>
+              <p className="text-xs text-zinc-500 mt-2 max-w-sm mx-auto">
+                No courses are registered for this semester in your profile. You can generate study paths or search for courses using the plus button.
+              </p>
             </div>
           )}
         </div>

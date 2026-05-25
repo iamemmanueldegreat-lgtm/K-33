@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { Settings, LogOut, ChevronRight, Shield, Bell, CreditCard, ExternalLink, GraduationCap, Camera, Loader2, User, Mail, MapPin } from 'lucide-react';
+import { Settings, LogOut, ChevronRight, Shield, Bell, CreditCard, ExternalLink, GraduationCap, Camera, Loader2, User, Mail, MapPin, Crown, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -187,25 +187,37 @@ export default function Profile() {
         <motion.div 
           whileTap={{ scale: 0.98 }}
           onClick={() => navigate('/billing')}
-          className="card-bento !bg-primary text-white border-none relative overflow-hidden group cursor-pointer p-8"
+          className="relative overflow-hidden group cursor-pointer rounded-[32px] p-6 sm:p-8 bg-gradient-to-br from-[#0A0D14] via-[#101520] to-[#0E1B29] border border-[#00BFFF]/20 shadow-[0_8px_30px_rgba(0,191,255,0.08)] mt-2"
         >
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 bg-white/20 rounded-lg">
-                <CreditCard size={18} />
+          {/* Subtle background glow */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#00BFFF]/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-[#00BFFF]/20 transition-all duration-500 transform group-hover:scale-110" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#FFBF00]/10 rounded-full blur-[40px] pointer-events-none group-hover:bg-[#FFBF00]/20 transition-all duration-500" />
+
+          {/* Sparkles icon decorative top right */}
+          <div className="absolute top-6 right-6 opacity-40 group-hover:opacity-100 group-hover:rotate-12 transition-all duration-300">
+            <Sparkles className="text-[#00BFFF]" size={36} strokeWidth={1} />
+          </div>
+
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="space-y-4 pr-12">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
+                <Crown size={14} className="text-[#FFBF00]" />
+                <span className="text-[10px] sm:text-xs font-black uppercase text-white tracking-widest">Premium Plan</span>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80">Membership</span>
+              
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-sm font-serif">Go Kortex Pro</h3>
+                <p className="text-zinc-400 text-[13px] sm:text-sm mt-1.5 leading-relaxed font-medium">Unlock 24/7 AI tutor, unlimited generations, and premium study tools.</p>
+              </div>
+
+              <div className="pt-1">
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/15 text-white rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
+                  View Benefits <ChevronRight size={14} className="text-[#00BFFF]" />
+                </span>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold">Go Kortex Pro</h3>
-            <p className="text-blue-100 text-sm opacity-90 leading-relaxed max-w-[200px]">Unlock unlimited AI analysis and test generation.</p>
           </div>
-          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-            <ChevronRight size={24} />
-          </div>
-        </div>
-        <div className="absolute -right-4 -bottom-4 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform"></div>
-      </motion.div>
+        </motion.div>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">

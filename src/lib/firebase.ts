@@ -1,11 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc, addDoc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc, addDoc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); // CRITICAL: The app will break without this line
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  ...({ useFetchStreams: false } as any),
+}, firebaseConfig.firestoreDatabaseId); // CRITICAL: The app will break without this line
 
 export const auth = getAuth();
 export const storage = getStorage(app);

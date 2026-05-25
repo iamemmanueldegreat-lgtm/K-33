@@ -1,149 +1,101 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Phase 3: Primitive Definition
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-    function isSignedIn() { return request.auth != null; }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'alijiojisi73@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.is_admin == true)
-      );
+      return request.auth != null
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
     }
 
-    // Entity Validations (Phase 2 & 4 Blueprint)
-    function isValidUser(data) {
-      return data.keys().hasAll(['email', 'state', 'school', 'department', 'level']) &&
-             data.email is string && data.email.size() <= 200 &&
-             data.state is string && data.state.size() <= 100 &&
-             data.school is string && data.school.size() <= 200 &&
-             data.department is string && data.department.size() <= 200 &&
-             data.level is string && data.level.size() <= 20;
-    }
-
-    function isValidCourse(data) {
-      return data.keys().hasAll(['school', 'department', 'level', 'code', 'title']) &&
-             data.school is string && data.school.size() <= 200 &&
-             data.department is string && data.department.size() <= 200 &&
-             data.level is string && data.level.size() <= 20 &&
-             data.code is string && data.code.size() <= 20 &&
-             data.title is string && data.title.size() <= 200 &&
-             (!('thumbnail' in data) || (data.thumbnail is string && data.thumbnail.size() <= 2000)) &&
-             (!('createdAt' in data) || (data.createdAt is string));
-    }
-
-    function isValidTopic(data) {
-      return data.keys().hasAll(['course_id', 'title']) &&
-             data.course_id is string && data.course_id.size() <= 128 &&
-             data.title is string && data.title.size() <= 200 &&
-             (!('content' in data) || (data.content is string && data.content.size() <= 1000000));
-    }
-
-    function isValidNote(data) {
-      return data.keys().hasAll(['userId', 'title', 'content', 'createdAt', 'updatedAt']) &&
-             data.userId == request.auth.uid &&
-             data.title is string && data.title.size() <= 200 &&
-             data.content is string && data.content.size() <= 100000 &&
-             (!('color' in data) || (data.color is string && data.color.size() <= 50)) && // Hex colors or CSS vars
-             (!('isLocked' in data) || (data.isLocked is bool)) &&
-             (!('tags' in data) || (data.tags is list && data.tags.size() <= 10));
-    }
-
-    function isValidChatSession(data) {
-      return data.keys().hasAll(['userId', 'title', 'messages', 'createdAt', 'updatedAt']) &&
-             data.userId == request.auth.uid &&
-             data.title is string && data.title.size() <= 200 &&
-             data.messages is list && data.messages.size() <= 500 && // limit 500
-             data.createdAt is timestamp && data.updatedAt is timestamp;
-    }
-
-    match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    match /admins/{email} {
+      allow get: if request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email == email;
       allow list: if isAdmin();
-
-      match /recent_views/{courseId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
-      }
-
-      // Users can create their own profile
-      // We don't allow setting is_admin on creation or update
-      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && isValidUser(incoming()) && incoming().keys().size() <= 13 && (!('is_admin' in incoming()) || isAdmin());
-
-      allow update: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && (
-        isAdmin() ||
-        incoming().diff(existing()).affectedKeys().hasOnly(['full_name', 'state', 'school', 'department', 'level', 'avatar_url', 'cover_url', 'is_pro', 'streak', 'last_login_date'])
-      );
-
-      allow delete: if isAdmin();
+      allow write: if false;
     }
 
-    match /admins/{adminId} {
-      // Only readable by the admin themselves or to check permissions internally via exists/get calls
-      allow get: if isSignedIn() && request.auth.uid == adminId;
-      allow list: if false;
-      allow read, write: if false; // Must be managed from Firebase console
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /departments/{deptId} {
+        allow read: if true;
+        allow write: if isAdmin();
+
+        match /levels/{levelId} {
+          allow read: if true;
+          allow write: if isAdmin();
+
+          match /courses/{courseId} {
+            allow read: if true;
+            allow write: if isAdmin();
+
+            match /chapters/{chapterId} {
+              allow read: if true;
+              allow write: if isAdmin();
+
+              match /topics/{topicId} {
+                allow read: if true;
+                allow write: if isAdmin();
+              }
+            }
+          }
+        }
+      }
     }
 
     match /courses/{courseId} {
-      allow get, list: if isSignedIn();
-      
-      allow create: if isAdmin() && isValidId(courseId) && isValidCourse(incoming());
-      
-      allow update: if isAdmin() && isValidCourse(incoming());
-      
-      allow delete: if isAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /topics/{topicId} {
+        allow read: if true;
+        allow create, delete: if isAdmin();
+        allow update: if request.auth != null;
+      }
     }
 
-    match /courses/{courseId}/topics/{topicId} {
-      allow get, list: if isSignedIn();
-      
-      allow create: if isAdmin() && isValidId(courseId) && isValidId(topicId) && isValidTopic(incoming());
-      
-      allow update: if isAdmin() && isValidTopic(incoming());
-      
+    match /{path=**}/departments/{deptId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{path=**}/levels/{levelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{path=**}/courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{path=**}/topics/{topicId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if request.auth != null;
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      allow create, update: if request.auth != null && request.auth.uid == userId;
       allow delete: if isAdmin();
+
+      match /recent_views/{viewId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     match /notes/{noteId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      
-      allow create: if isSignedIn() && isValidId(noteId) && isValidNote(incoming()) && 
-                    incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      
-      allow update: if isSignedIn() && existing().userId == request.auth.uid && 
-                    isValidNote(incoming()) && 
-                    incoming().createdAt == existing().createdAt &&
-                    incoming().updatedAt == request.time &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'color', 'tags', 'isLocked', 'updatedAt']);
-      
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow read: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid);
+      allow write: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid) && (request.resource == null || request.resource.data.userId == request.auth.uid);
     }
 
     match /chat_sessions/{sessionId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      
-      allow create: if isSignedIn() && isValidId(sessionId) && isValidChatSession(incoming()) && 
-                    incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      
-      allow update: if isSignedIn() && existing().userId == request.auth.uid && 
-                    isValidChatSession(incoming()) && 
-                    incoming().createdAt == existing().createdAt &&
-                    incoming().updatedAt == request.time &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'messages', 'updatedAt']);
-      
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow read: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid);
+      allow write: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid) && (request.resource == null || request.resource.data.userId == request.auth.uid);
     }
   }
 }

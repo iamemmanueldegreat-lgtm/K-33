@@ -15,7 +15,6 @@ const Profile = lazy(() => import('./pages/Profile'));
 const Study = lazy(() => import('./pages/Study'));
 const Auth = lazy(() => import('./pages/Auth'));
 const Analytics = lazy(() => import('./pages/Analytics'));
-const Notes = lazy(() => import('./pages/Notes'));
 const Chat = lazy(() => import('./pages/Chat'));
 const Course = lazy(() => import('./pages/Course'));
 const Billing = lazy(() => import('./pages/Billing'));
@@ -194,7 +193,6 @@ export default function App() {
               <Route path="/admin" element={<AdminRedirect />} />
               <Route path="/course/:courseId" element={<Course />} />
               <Route path="/analytics" element={<Analytics />} />
-              <Route path="/notes" element={<Notes />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/billing" element={<Billing />} />
             </Route>

@@ -19,9 +19,10 @@ interface PracticeQuizProps {
   courseTitle: string;
   courseCode: string;
   topicTitle: string;
+  preGeneratedQuestions?: any[];
 }
 
-export default function PracticeQuiz({ courseTitle, courseCode, topicTitle }: PracticeQuizProps) {
+export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preGeneratedQuestions }: PracticeQuizProps) {
   // Flow states
   const [sessionState, setSessionState] = useState<SessionState>('SETUP');
   const [numQuestions, setNumQuestions] = useState(5);
@@ -59,6 +60,29 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle }: Pr
 
   const generateQuiz = async () => {
     setSessionState('GENERATING');
+    
+    // Use pre-generated offline questions if available
+    if (preGeneratedQuestions && preGeneratedQuestions.length > 0) {
+      setTimeout(() => {
+        // Take up to numQuestions if there are extra, or use all
+        const subset = preGeneratedQuestions.slice(0, numQuestions);
+        setQuestions(subset);
+        setCurrentIdx(0);
+        setScore(0);
+        setSelectedOption(null);
+        setTimeElapsed(0);
+        
+        if (duration !== 'Untimed') {
+          const mins = parseInt(duration.split(' ')[0]);
+          setTimeRemaining(mins * 60);
+        } else {
+          setTimeRemaining(null);
+        }
+        
+        setSessionState('QUIZ');
+      }, 700);
+      return;
+    }
     
     try {
       const res = await fetch("/api/generate-quiz", {

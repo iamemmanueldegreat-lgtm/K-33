@@ -31,6 +31,11 @@ export interface Topic {
   course_id: string;
   title: string;
   content?: string;
+  chapter?: string;
+  chapter_order?: number;
+  order?: number;
+  key_takeaways?: string;
+  quiz_questions?: string;
 }
 
 export interface Note {

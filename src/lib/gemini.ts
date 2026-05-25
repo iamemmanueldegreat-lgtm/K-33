@@ -13,7 +13,13 @@ export const generateCourseForDepartment = async (department: string) => {
   }
 };
 
-export const generateStudyContent = async (topic: string, course: string, level: string) => {
+export interface GeneratedStudyPackage {
+  content: string;
+  key_takeaways: string;
+  quiz_questions: any[];
+}
+
+export const generateStudyContent = async (topic: string, course: string, level: string): Promise<GeneratedStudyPackage> => {
   try {
     const res = await fetch("/api/generate-study", {
       method: "POST",
@@ -22,7 +28,11 @@ export const generateStudyContent = async (topic: string, course: string, level:
     });
     if (!res.ok) throw new Error("Network response was not ok");
     const data = await res.json();
-    return data.content;
+    return {
+      content: data.content || '',
+      key_takeaways: data.key_takeaways || '',
+      quiz_questions: data.quiz_questions || []
+    };
   } catch (error) {
     console.error("AI Generation Error:", error);
     throw new Error("Failed to generate study content. Please try again.");

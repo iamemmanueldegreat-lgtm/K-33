@@ -14,26 +14,28 @@ function cn(...inputs: ClassValue[]) {
 export default function MainLayout() {
   const { user } = useAuth();
   const location = useLocation();
-  const isNotesPage = location.pathname === '/notes';
   const isChatPage = location.pathname === '/chat';
   const isProfilePage = location.pathname === '/profile';
-  const hideTabBar = isNotesPage || isChatPage;
+  const isCoursePage = location.pathname.startsWith('/course/');
+  const isBillingPage = location.pathname === '/billing';
+  const hideTabBar = isChatPage || isBillingPage;
   const navigate = useNavigate();
 
   return (
     <div className={cn(
-      "min-h-[100dvh] flex flex-col bg-background",
+      "min-h-[100dvh] flex flex-col",
+      "bg-background",
       !hideTabBar && "pb-20",
-      isChatPage && "h-[100dvh] overflow-hidden !pb-0" // override for chat to prevent main page scroll
+      (isChatPage || isCoursePage || isBillingPage) && "h-[100dvh] overflow-hidden !pb-0" // override to prevent main page scroll
     )}>
       <main className={cn(
         "flex-1 flex flex-col w-full min-h-0",
-        (!isChatPage && !isProfilePage) ? "p-4 sm:p-6 xl:p-8" : "p-0"
+        (!isChatPage && !isProfilePage && !isCoursePage && !isBillingPage) ? "p-4 sm:p-6 xl:p-8" : "p-0"
       )}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            className={cn(isChatPage && "flex-1 flex flex-col min-h-0")}
+            className={cn((isChatPage || isCoursePage || isBillingPage) && "flex-grow flex flex-col min-h-0 w-full h-full overflow-hidden")}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -46,12 +48,12 @@ export default function MainLayout() {
 
       {!hideTabBar && (
         <div className="fixed bottom-6 left-0 right-0 z-[100] px-4 pointer-events-none flex justify-center">
-          <nav className="w-[90%] max-w-md h-16 bg-[#0a0a0a] dark:bg-[#0a0a0a] rounded-full flex items-center justify-between px-2 sm:px-4 shadow-2xl border border-white/5 pointer-events-auto">
+          <nav className="w-[90%] max-w-md h-16 bg-[#18181b] dark:bg-[#1E232E] rounded-full flex items-center justify-between px-2 sm:px-4 shadow-[0_12px_40px_rgba(0,0,0,0.25)] border border-white/10 dark:border-white/15 dark:shadow-[0_12px_40px_rgba(0,0,0,0.5)] pointer-events-auto transition-all backdrop-blur-md">
             {/* Student Navigation */}
             <>
               <NavLink to="/" className={({ isActive }) => cn(
                 "h-12 flex items-center gap-2 px-4 rounded-full transition-all duration-300",
-                isActive ? "bg-[#2A2A2A] text-white" : "text-zinc-500 hover:text-zinc-300"
+                isActive ? "bg-[#3f3f46] dark:bg-[#343C4B] text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200 dark:text-zinc-400 dark:hover:text-zinc-200"
               )}>
                 {({ isActive }) => (
                   <>
@@ -72,7 +74,7 @@ export default function MainLayout() {
 
               <NavLink to="/library" className={({ isActive }) => cn(
                 "h-12 flex items-center gap-2 px-4 rounded-full transition-all duration-300",
-                isActive ? "bg-[#2A2A2A] text-white" : "text-zinc-500 hover:text-zinc-300"
+                isActive ? "bg-[#3f3f46] dark:bg-[#343C4B] text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200 dark:text-zinc-400 dark:hover:text-zinc-200"
               )}>
                 {({ isActive }) => (
                   <>
@@ -93,7 +95,7 @@ export default function MainLayout() {
 
               <NavLink to="/chat" className={({ isActive }) => cn(
                 "h-12 flex items-center gap-2 px-4 rounded-full transition-all duration-300",
-                isActive ? "bg-[#2A2A2A] text-white" : "text-zinc-500 hover:text-zinc-300"
+                isActive ? "bg-[#3f3f46] dark:bg-[#343C4B] text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200 dark:text-zinc-400 dark:hover:text-zinc-200"
               )}>
                 {({ isActive }) => (
                   <>
@@ -114,7 +116,7 @@ export default function MainLayout() {
               
               <NavLink to="/profile" className={({ isActive }) => cn(
                 "h-12 flex items-center gap-2 px-4 rounded-full transition-all duration-300",
-                isActive ? "bg-[#2A2A2A] text-white" : "text-zinc-500 hover:text-zinc-300"
+                isActive ? "bg-[#3f3f46] dark:bg-[#343C4B] text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200 dark:text-zinc-400 dark:hover:text-zinc-200"
               )}>
                 {({ isActive }) => (
                   <>

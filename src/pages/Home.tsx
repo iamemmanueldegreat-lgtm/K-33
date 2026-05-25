@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../App';
-import { Book, Zap, Clock, Trophy, ChevronRight, PlayCircle, BarChart2, MessageSquare, BookOpen, FileText } from 'lucide-react';
+import { Book, Zap, Clock, Trophy, ChevronRight, PlayCircle, BarChart2, MessageSquare, BookOpen, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -12,6 +12,7 @@ export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
+  const [totalAvailableCourses, setTotalAvailableCourses] = useState<number>(0);
   const [continueLearning, setContinueLearning] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,18 +32,7 @@ export default function Home() {
         limit(5)
       ));
 
-      let q = query(collection(db, 'courses'), limit(10));
-      if (!user?.is_admin) {
-        // Fetch courses for the student's school that match their department OR are 'General'
-        const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
-        q = query(
-          collection(db, 'courses'),
-          where('school', '==', user?.school),
-          where('department', 'in', departments),
-          limit(20)
-        );
-      }
-      const coursesSnapshotPromise = getDocs(q);
+      const coursesSnapshotPromise = getDocs(query(collection(db, 'courses')));
 
       const [recentViewsSnapshot, coursesSnapshot] = await Promise.all([recentViewsPromise, coursesSnapshotPromise]);
       
@@ -64,18 +54,22 @@ export default function Home() {
       const continueLearningData = (await Promise.all(continueLearningPromises)).filter(Boolean) as Course[];
       setContinueLearning(continueLearningData);
 
-      // Filter by level in memory to maintain flexibility without complex Firestore composite indexes
+      // Filter courses in memory to bypass any potential composite index issues
       let coursesData: Course[] = coursesSnapshot.docs.map(docSnapshot => ({
         id: docSnapshot.id,
         ...docSnapshot.data()
       } as Course));
 
       if (!user?.is_admin) {
+        const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
         coursesData = coursesData.filter(c => 
-          c.level === user?.level || c.level === 'All Levels' || !c.level
+          c.school === user?.school &&
+          departments.includes(c.department) &&
+          (c.level === user?.level || c.level === 'All Levels' || !c.level)
         );
       }
       
+      setTotalAvailableCourses(coursesData.length);
       setRecentCourses(coursesData.slice(0, 10));
     } catch (error) {
       console.error("Error fetching home data:", error);
@@ -167,22 +161,22 @@ export default function Home() {
       {/* Main Action Bento Grid */}
       <div className="grid grid-cols-2 gap-3">
         {/* My Courses Card */}
-        <div onClick={() => navigate('/library')} className="bg-surface border border-border text-text rounded-[24px] p-4 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:border-primary/30 transition-colors">
+        <div onClick={() => navigate('/library')} className="bg-[#EEF4FF] dark:bg-blue-900/40 border border-blue-100 dark:border-blue-500/20 rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:shadow-md transition-all">
           <div className="relative z-10">
-            <p className="text-[10px] font-medium text-muted mb-1">{recentCourses.length || '0'} active</p>
-            <h3 className="text-lg font-bold leading-tight group-hover:translate-x-1 transition-transform">My<br/>Courses</h3>
+            <p className="text-[10px] font-black tracking-wider text-blue-600 dark:text-blue-300 uppercase mb-1.5">{totalAvailableCourses} available</p>
+            <h3 className="text-xl font-black leading-tight text-[#1E2E5B] dark:text-blue-50 tracking-tight group-hover:translate-x-1 transition-transform">My Courses</h3>
           </div>
-          <BookOpen size={64} className="absolute bottom-2 right-2 text-border group-hover:scale-110 transition-transform" />
+          <BookOpen size={72} strokeWidth={1.5} className="absolute -bottom-1 -right-1 text-blue-400/30 dark:text-blue-400/20 group-hover:scale-110 transition-transform duration-500 opacity-90" />
         </div>
 
-        {/* Notes Card */}
-        <div onClick={() => navigate('/notes')} className="bg-[#FAF5FF] dark:bg-[#FAF5FF]/10 border border-purple-200/50 rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:shadow-md transition-all">
+        {/* Premium & Plan Card (Replaces Notes placeholder location beautifully) */}
+        <div onClick={() => navigate('/billing')} className="bg-[#FFF8F0] dark:bg-amber-900/40 border border-amber-200/50 dark:border-amber-500/20 rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:shadow-md transition-all">
           <div className="relative z-10">
-            <p className="text-[10px] font-bold text-purple-600/70 dark:text-purple-400 uppercase tracking-widest mb-1.5">Jot down your</p>
-            <h3 className="text-xl font-bold leading-tight group-hover:translate-x-1 transition-transform text-purple-900 dark:text-purple-100">Notes</h3>
+            <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1.5 font-bold">Manage & Upgrade</p>
+            <h3 className="text-xl font-black leading-tight text-amber-900 dark:text-amber-100 tracking-tight group-hover:translate-x-1 transition-transform">Go Premium</h3>
           </div>
-          <div className="absolute -bottom-6 -right-6 w-36 h-36 bg-purple-200/40 rounded-full blur-2xl group-hover:bg-purple-300/50 transition-colors"></div>
-          <FileText size={72} strokeWidth={1.5} className="absolute bottom-1 right-1 text-purple-200 dark:text-purple-400 group-hover:scale-110 transition-all duration-500 opacity-80" />
+          <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-amber-200/30 dark:bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-300/40 dark:group-hover:bg-amber-500/20 transition-colors"></div>
+          <Crown size={72} strokeWidth={1.2} className="absolute bottom-1 right-1 text-amber-500/30 dark:text-amber-400/20 group-hover:scale-110 transition-all duration-500 opacity-90 rotate-12" />
         </div>
 
         {/* AI Chat Card */}
@@ -200,12 +194,12 @@ export default function Home() {
         </div>
 
         {/* Analytics Card */}
-        <div onClick={() => navigate('/analytics')} className="bg-surface border border-border text-text rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:border-primary/30 transition-colors">
+        <div onClick={() => navigate('/analytics')} className="bg-[#E8F9F3] dark:bg-teal-900/40 border border-teal-100 dark:border-teal-500/20 rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:shadow-md transition-all">
           <div className="relative z-10">
-            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-1.5">Track your</p>
-            <h3 className="text-xl font-bold leading-tight group-hover:translate-x-1 transition-transform">Analytics</h3>
+            <p className="text-[10px] font-black tracking-wider text-teal-600 dark:text-teal-300 uppercase mb-1.5">Track your</p>
+            <h3 className="text-xl font-black leading-tight text-[#0B3A2C] dark:text-teal-50 tracking-tight group-hover:translate-x-1 transition-transform">Analytics</h3>
           </div>
-          <BarChart2 size={64} strokeWidth={1.5} className="absolute bottom-2 right-2 text-primary/20 group-hover:scale-110 transition-all duration-500" />
+          <BarChart2 size={72} strokeWidth={1.5} className="absolute -bottom-1 -right-1 text-teal-400/30 dark:text-teal-400/20 group-hover:scale-110 transition-all duration-500 opacity-90" />
         </div>
       </div>
 
@@ -223,7 +217,7 @@ export default function Home() {
         </div>
         <div className="flex-1">
           <h4 className="font-bold text-sm">Your enrolled courses</h4>
-          <p className="text-[11px] text-muted font-medium mt-0.5">Total {recentCourses.length || '0'} courses</p>
+          <p className="text-[11px] text-muted font-medium mt-0.5">Total {totalAvailableCourses} courses</p>
         </div>
         <ChevronRight size={20} className="text-muted group-hover:text-primary transition-colors" />
       </div>
