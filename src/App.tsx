@@ -5,7 +5,7 @@ import { useEffect, useState, createContext, useContext } from 'react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { Analytics } from '@vercel/analytics/react';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import MainLayout from './layouts/MainLayout';
 import type { UserProfile } from './types';
@@ -203,7 +203,7 @@ export default function App() {
           </Routes>
         </Suspense>
         <Toaster position="top-center" />
-        <Analytics />
+        <VercelAnalytics />
         <SpeedInsights />
       </BrowserRouter>
     </AuthContext.Provider>
