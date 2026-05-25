@@ -6,6 +6,7 @@ import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import MainLayout from './layouts/MainLayout';
 import type { UserProfile } from './types';
 import LoadingScreen from './components/LoadingScreen';
@@ -203,6 +204,7 @@ export default function App() {
         </Suspense>
         <Toaster position="top-center" />
         <Analytics />
+        <SpeedInsights />
       </BrowserRouter>
     </AuthContext.Provider>
   );
