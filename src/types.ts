@@ -12,6 +12,15 @@ export interface UserProfile {
   is_admin?: boolean;
   streak?: number;
   last_login_date?: string;
+  active_days?: string[];
+  study_hours_by_date?: Record<string, number>;
+  academic_stats_by_date?: Record<string, {
+    answered: number;
+    right: number;
+    coins: number;
+    finished_reading: number;
+    started_reading: number;
+  }>;
 }
 
 export interface Course {
@@ -24,6 +33,8 @@ export interface Course {
   description: string;
   topics: Topic[];
   thumbnail?: string;
+  is_ocw?: boolean;
+  curriculum?: string;
 }
 
 export interface Topic {

@@ -11,6 +11,7 @@ import type { Course, Topic } from '../types';
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const root = 'courses';
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [totalAvailableCourses, setTotalAvailableCourses] = useState<number>(0);
   const [continueLearning, setContinueLearning] = useState<Course[]>([]);
@@ -32,19 +33,19 @@ export default function Home() {
         limit(5)
       ));
 
-      const coursesSnapshotPromise = getDocs(query(collection(db, 'courses')));
+      const coursesSnapshotPromise = getDocs(query(collection(db, root)));
 
       const [recentViewsSnapshot, coursesSnapshot] = await Promise.all([recentViewsPromise, coursesSnapshotPromise]);
       
       // Fetch course details and topics in parallel for continue learning
       const continueLearningPromises = recentViewsSnapshot.docs.map(async (viewDoc) => {
         const viewData = viewDoc.data();
-        const courseRef = doc(db, 'courses', viewData.courseId);
+        const courseRef = doc(db, root, viewData.courseId);
         const courseDoc = await getDoc(courseRef);
         
         if (courseDoc.exists()) {
           const course = { id: courseDoc.id, ...courseDoc.data() } as Course;
-          const topicsSnapshot = await getDocs(query(collection(db, `courses/${course.id}/topics`), limit(1)));
+          const topicsSnapshot = await getDocs(query(collection(db, `${root}/${course.id}/topics`), limit(1)));
           course.topics = topicsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Topic));
           return course;
         }

@@ -10,6 +10,7 @@ const cachedCourseDetails: Record<string, { course: CourseType; topics: Topic[] 
 
 export default function Course() {
   const { courseId } = useParams();
+  const root = 'courses';
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
@@ -37,6 +38,11 @@ export default function Course() {
   const [course, setCourse] = useState<CourseType | null>(cachedData?.course || null);
   const [topics, setTopics] = useState<Topic[]>(cachedData?.topics || []);
   const [loading, setLoading] = useState(!cachedData);
+  useEffect(() => {
+    setCourse(cachedData?.course || null);
+    setTopics(cachedData?.topics || []);
+    setLoading(!cachedData);
+  }, [courseId, cachedData]);
   
   // Specific selected chapter name from URL parameter
   const selectedChapterName = searchParams.get('chapter') || '';
@@ -49,7 +55,7 @@ export default function Course() {
         setLoading(true);
       }
       try {
-        const courseDoc = await getDoc(doc(db, 'courses', courseId));
+        const courseDoc = await getDoc(doc(db, root, courseId));
         let cData: CourseType | null = null;
         if (courseDoc.exists()) {
           cData = courseDoc.data() as CourseType;
@@ -58,7 +64,7 @@ export default function Course() {
         }
         
         const topicsSnapshot = await getDocs(
-          collection(db, `courses/${courseId}/topics`)
+          collection(db, `${root}/${courseId}/topics`)
         );
         const topicsData: Topic[] = topicsSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
         topicsData.sort((a, b) => {
@@ -82,7 +88,7 @@ export default function Course() {
         if (hasCached) {
           console.warn('Failed to refresh course details in background, using cache', error);
         } else {
-          handleFirestoreError(error, OperationType.GET, 'courses/' + courseId);
+          handleFirestoreError(error, OperationType.GET, root + '/' + courseId);
         }
       } finally {
         setLoading(false);
@@ -290,16 +296,18 @@ export default function Course() {
             </div>
 
             {/* Back Button and "Course Details" Label */}
-            <div className="max-w-4xl w-full mx-auto px-6 flex items-center gap-5 z-20">
-              <button
-                onClick={() => navigate('/library')}
-                className="w-12 h-12 rounded-full bg-white border border-zinc-250 text-zinc-800 hover:bg-zinc-50 transition-all flex items-center justify-center shadow-md active:scale-90 cursor-pointer shrink-0"
-              >
-                <ArrowLeft size={22} className="stroke-[2.5]" />
-              </button>
-              <span className="text-lg sm:text-xl font-black tracking-tight text-neutral-900 font-sans leading-none">
-                Course Details
-              </span>
+            <div className="max-w-4xl w-full mx-auto px-6 flex items-center justify-between z-20">
+              <div className="flex items-center gap-5">
+                <button
+                  onClick={() => navigate('/library')}
+                  className="w-12 h-12 rounded-full bg-white border border-zinc-250 text-zinc-800 hover:bg-zinc-50 transition-all flex items-center justify-center shadow-md active:scale-90 cursor-pointer shrink-0"
+                >
+                  <ArrowLeft size={22} className="stroke-[2.5]" />
+                </button>
+                <span className="text-lg sm:text-xl font-black tracking-tight text-neutral-900 font-sans leading-none">
+                  Course Details
+                </span>
+              </div>
             </div>
           </div>
 

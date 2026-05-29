@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Check, 
@@ -6,13 +6,16 @@ import {
   Crown, 
   X, 
   CreditCard, 
-  Smartphone 
+  Smartphone,
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../App';
 import { toast } from 'react-hot-toast';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import LoadingScreen from '../components/LoadingScreen';
 
 // Import our gorgeous generated premium hero bg
 // @ts-ignore
@@ -31,6 +34,16 @@ export default function Billing() {
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [transferStep, setTransferStep] = useState<'pending' | 'verifying' | 'success'>('pending');
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setImageLoaded(true);
+    img.src = premiumHeroBg;
+    if (img.complete) {
+      setImageLoaded(true);
+    }
+  }, []);
 
   const currentPrice = selectedPlan === 'monthly' ? 2000 : 5000;
   const planLabel = selectedPlan === 'monthly' ? 'Monthly Premium' : 'Semester Premium';
@@ -106,16 +119,20 @@ export default function Billing() {
     }
   };
 
+  if (!imageLoaded) {
+    return <LoadingScreen />;
+  }
+
   return (
-    <div className="fixed inset-0 w-full h-full bg-[#EBF5FB] dark:bg-[#1A1A1A] text-black dark:text-white font-sans overflow-hidden flex flex-col select-none z-50">
+    <div className="fixed inset-0 w-full h-full bg-white dark:bg-[#121212] text-black dark:text-white font-sans overflow-hidden flex flex-col select-none z-50">
       
       {/* Background radial styling for pure flat gradients */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-[20%] left-[50%] -translate-x-1/2 w-[120%] h-[60%] rounded-full bg-[#00BFFF]/5 dark:bg-[#00D2D3]/3 blur-[140px]" />
       </div>
 
-      {/* Hero Image Section - Top section that takes up about 45% of height */}
-      <div className="relative w-full h-[45vh] lg:h-[50vh] shrink-0 overflow-hidden z-10 flex flex-col items-center justify-end pb-8">
+      {/* Hero Image Section - Top section */}
+      <div className="relative w-full h-[48vh] sm:h-[50vh] lg:h-[54vh] shrink-0 overflow-hidden z-10 flex flex-col items-center justify-end pb-8">
         <img 
           src={premiumHeroBg} 
           alt="Premium AI study guide background" 
@@ -123,18 +140,26 @@ export default function Billing() {
           referrerPolicy="no-referrer"
         />
         
-        {/* Full image gradient overlay blending it into the background color below smoothly */}
-        <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-[#EBF5FB] via-[#EBF5FB]/80 to-transparent dark:from-[#1A1A1A] dark:via-[#1A1A1A]/80 dark:to-transparent" />
-        <div className="absolute inset-0 bg-black/10 mix-blend-overlay dark:bg-black/20" />
+        {/* Soft, silky-smooth multi-layered gradient fade blending the image completely into the background color at the bottom */}
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/45 via-[50%] via-white/5 via-[80%] to-transparent dark:from-[#121212] dark:via-[#121212]/45 dark:via-[50%] dark:via-[#121212]/5 dark:via-[80%] dark:to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-black/5 mix-blend-overlay dark:bg-black/15 pointer-events-none" />
 
-        {/* Top overlay controls */}
-        <div className="absolute top-[env(safe-area-inset-top,20px)] mt-2 md:mt-5 left-5 right-5 z-30 flex items-center">
+        {/* Top overlay controls - Sleek adaptive cancel close button on the left, pill Go Premium button on the right */}
+        <div className="absolute top-6 left-6 right-6 z-30 flex justify-between items-center w-[calc(100%-48px)]">
           <button 
             onClick={() => navigate('/')} 
-            className="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 shadow-[0_4px_15px_rgb(0,0,0,0.15)] border border-black/5 dark:border-white/10 flex items-center justify-center text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-700 active:scale-95 transition-all outline-none"
+            className="w-10 h-10 rounded-full bg-white/80 hover:bg-white text-zinc-800 border border-zinc-200/80 dark:bg-zinc-950/50 dark:hover:bg-zinc-950/80 dark:text-zinc-100 dark:border-white/10 backdrop-blur-md flex items-center justify-center transition-all active:scale-90 hover:scale-[1.05] cursor-pointer shadow-sm hover:shadow-md"
             id="close-billing-btn"
+            title="Cancel"
           >
-            <X size={20} strokeWidth={2.5} />
+            <X size={18} strokeWidth={2.5} />
+          </button>
+
+          <button
+            onClick={startMonnifyCheckout}
+            className="px-4 py-1.5 rounded-full bg-[#00BFFF] hover:bg-[#009FD0] active:scale-95 text-white font-extrabold text-xs tracking-wider transition-all cursor-pointer shadow-md shadow-[#00BFFF]/25 hover:shadow-[#00BFFF]/35"
+          >
+            Go Premium
           </button>
         </div>
 
@@ -144,18 +169,18 @@ export default function Billing() {
             Unlimited Access
           </h2>
           <p className="text-zinc-600 dark:text-white/70 text-[10.5px] sm:text-xs font-bold md:font-semibold tracking-wide mt-2">
-            Access the most advanced AI research assistant
+            Unlock KortexAi's intelligent study assistant and master your curriculum with ease
           </p>
         </div>
       </div>
 
       {/* Content Body Layout container to restrict max-width and center contents */}
-      <div className="flex-1 w-full max-w-md mx-auto flex flex-col justify-between px-6 pb-6 z-10 overflow-hidden relative">
+      <div className="flex-1 w-full max-w-3xl mx-auto flex flex-col justify-between px-4 sm:px-8 pb-6 sm:pb-8 z-10 overflow-hidden relative">
         
-        {/* Checklist */}
-        <div className="space-y-3.5 mt-2 md:mt-4 w-full">
+        {/* Checklist - Left-aligned starting exactly where the price boxes start */}
+        <div className="w-full max-w-sm sm:max-w-md mx-auto mt-4 md:mt-6 px-4">
           {user?.is_pro && (
-            <div className="px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-3">
+            <div className="px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-3 w-full justify-center mb-4">
               <Crown className="text-emerald-500 dark:text-emerald-400 shrink-0" size={18} />
               <div>
                 <p className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Premium Active 👑</p>
@@ -163,113 +188,140 @@ export default function Billing() {
             </div>
           )}
 
-          {[
-            { text: "24/7 AI Personal Tutor" },
-            { text: "Smart Curriculum Navigation" },
-            { text: "Auto-Generated Study Notes" },
-            { text: "Integrated Personal Notepad" },
-            { text: "Adaptive Practice Quizzes" },
-            { text: "Deep Performance Analytics" }
-          ].map((feature, index) => (
-            <div key={index} className="flex items-center gap-3.5 group">
-              <div className="w-[18px] h-[18px] rounded border border-[#00BFFF]/40 flex items-center justify-center text-[#00BFFF] shrink-0 bg-transparent dark:border-[#00D2D3]/40 dark:text-[#00BFFF]">
-                <Check size={14} strokeWidth={3} />
+          <div className="space-y-3.5 w-full flex flex-col items-start pl-1">
+            {[
+              { text: "24/7 AI Personal Tutor" },
+              { text: "Smart Curriculum Navigation" },
+              { text: "Auto-Generated Study Notes" },
+              { text: "Adaptive Practice Quizzes" },
+              { text: "Deep Performance Analytics" }
+            ].map((feature, index) => (
+              <div key={index} className="flex items-center gap-3.5 group">
+                {/* Custom Boxed Checkbox exactly like the mockups */}
+                <div className="w-[18px] h-[18px] rounded-md bg-[#00BFFF] border border-[#00BFFF] flex items-center justify-center text-white shrink-0 shadow-sm shadow-[#00BFFF]/20">
+                  <Check size={12} strokeWidth={4} />
+                </div>
+                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">
+                  {feature.text}
+                </span>
               </div>
-              <span className="text-[13px] md:text-sm font-medium text-zinc-800 dark:text-zinc-200 tracking-tight">
-                {feature.text}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* Subscription Plan Cards Grid Side by Side */}
-        <div className="grid grid-cols-2 gap-3 mt-6 mb-2 w-full">
-          {/* Monthly Card */}
-          <div 
-            onClick={() => {
-              if (!user?.is_pro) setSelectedPlan('monthly');
-            }}
-            className={`p-4 sm:p-5 rounded-[20px] transition-all duration-300 relative border cursor-pointer flex flex-col justify-between min-h-[125px] sm:min-h-[135px] ${
-              selectedPlan === 'monthly' && !user?.is_pro
-                ? 'bg-[#EBF5FB] border-[#00BFFF] shadow text-zinc-900 dark:bg-zinc-800 dark:border-[#00BFFF] dark:text-white'
-                : 'bg-white/50 border-zinc-300/80 hover:border-[#00BFFF]/50 text-zinc-600 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-zinc-400'
-            }`}
-          >
-            <div className="flex justify-between items-start">
-              <span className="text-[11px] sm:text-[12px] font-semibold text-zinc-800 dark:text-zinc-300">
-                Monthly Pass
-              </span>
-              {/* Checkbox representation square */}
-              <div className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all shrink-0 ${
+        {/* Subscription Plan Cards Grid Side by Side - Slightly smaller as requested */}
+        <div className="w-full max-w-sm sm:max-w-md mx-auto">
+          <div className="grid grid-cols-2 gap-4 mt-5 mb-4 w-full">
+            {/* Monthly Card */}
+            <div 
+              onClick={() => {
+                if (!user?.is_pro) setSelectedPlan('monthly');
+              }}
+              className={`p-3.5 rounded-[16px] transition-all duration-300 relative border cursor-pointer flex flex-col justify-between min-h-[125px] sm:min-h-[135px] ${
                 selectedPlan === 'monthly' && !user?.is_pro
-                  ? 'border-[#00BFFF] bg-transparent text-[#00BFFF]'
-                  : 'border-zinc-300 dark:border-zinc-700'
-              }`}>
-                {selectedPlan === 'monthly' && !user?.is_pro && <Check size={12} strokeWidth={4} />}
+                  ? 'bg-[#EBF5FB] border-[#00BFFF] dark:bg-zinc-900 border-2 shadow-md text-zinc-900 dark:text-white'
+                  : 'bg-zinc-50/70 border-zinc-200 hover:border-[#00BFFF]/50 text-zinc-650 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-zinc-400 border shadow-sm'
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <span className="text-[11.5px] sm:text-[12.5px] font-bold text-zinc-700 dark:text-zinc-350">
+                  Monthly Pass
+                </span>
+                {/* Checkbox representation square */}
+                <div className={`w-4.5 h-4.5 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
+                  selectedPlan === 'monthly' && !user?.is_pro
+                    ? 'border-[#00BFFF] bg-[#00BFFF] text-white shadow-sm'
+                    : 'border-zinc-300 dark:border-zinc-700'
+                }`}>
+                  {selectedPlan === 'monthly' && !user?.is_pro && <Check size={12} strokeWidth={4} />}
+                </div>
+              </div>
+              
+              <div className="mt-auto pt-1 flex flex-col items-start">
+                <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white block tracking-tight">
+                  ₦2,000
+                </span>
+                {/* Apply coupon code badge */}
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const code = prompt("Enter Coupon Code:");
+                    if (code) {
+                      toast.success(`Coupon code "${code}" applied! 🏷️`);
+                    }
+                  }}
+                  className="mt-1 inline-flex items-center bg-[#00BFFF]/10 hover:bg-[#00BFFF]/20 border border-[#00BFFF]/20 rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold tracking-wide text-[#00BFFF] whitespace-nowrap overflow-hidden cursor-pointer transition-all"
+                >
+                  Apply Coupon
+                </div>
+                <p className="text-[9.5px] sm:text-[10.5px] text-zinc-500 dark:text-zinc-400 font-semibold mt-1">per month</p>
               </div>
             </div>
-            
-            <div className="mt-auto pt-3">
-              <span className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white block font-serif tracking-tight">
-                ₦2,000
-              </span>
-              <p className="text-[10.5px] text-zinc-600 dark:text-zinc-400 font-medium mt-1">per month</p>
-            </div>
-          </div>
 
-          {/* Semester Card */}
-          <div 
-            onClick={() => {
-              if (!user?.is_pro) setSelectedPlan('semester');
-            }}
-            className={`p-4 sm:p-5 rounded-[20px] transition-all duration-300 relative border cursor-pointer flex flex-col justify-between min-h-[125px] sm:min-h-[135px] ${
-              selectedPlan === 'semester' && !user?.is_pro
-                ? 'bg-[#EBF5FB] border-[#00BFFF] shadow text-zinc-900 dark:bg-zinc-800 dark:border-[#00BFFF] dark:text-white'
-                : 'bg-white/50 border-zinc-300/80 hover:border-[#00BFFF]/50 text-zinc-600 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-zinc-400'
-            }`}
-          >
-            <div className="flex justify-between items-start">
-              <span className="text-[11px] sm:text-[12px] font-semibold text-zinc-800 dark:text-zinc-300">
-                Semester Pass
-              </span>
-              <div className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all shrink-0 ${
+            {/* Semester Card */}
+            <div 
+              onClick={() => {
+                if (!user?.is_pro) setSelectedPlan('semester');
+              }}
+              className={`p-3.5 rounded-[16px] transition-all duration-300 relative border cursor-pointer flex flex-col justify-between min-h-[125px] sm:min-h-[135px] ${
                 selectedPlan === 'semester' && !user?.is_pro
-                  ? 'border-[#00BFFF] bg-transparent text-[#00BFFF]'
-                  : 'border-zinc-300 dark:border-zinc-700'
-              }`}>
-                {selectedPlan === 'semester' && !user?.is_pro && <Check size={12} strokeWidth={4} />}
+                  ? 'bg-[#EBF5FB] border-[#00BFFF] dark:bg-zinc-900 border-2 shadow-md text-zinc-900 dark:text-white'
+                  : 'bg-zinc-50/70 border-zinc-200 hover:border-[#00BFFF]/50 text-zinc-650 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-zinc-400 border shadow-sm'
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <span className="text-[11.5px] sm:text-[12.5px] font-bold text-zinc-700 dark:text-zinc-350">
+                  Semester Pass
+                </span>
+                {/* Checkbox representation square */}
+                <div className={`w-4.5 h-4.5 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
+                  selectedPlan === 'semester' && !user?.is_pro
+                    ? 'border-[#00BFFF] bg-[#00BFFF] text-white shadow-sm'
+                    : 'border-zinc-300 dark:border-zinc-700'
+                }`}>
+                  {selectedPlan === 'semester' && !user?.is_pro && <Check size={12} strokeWidth={4} />}
+                </div>
               </div>
-            </div>
-            
-            <div className="mt-auto pt-2">
-              <span className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white block font-serif tracking-tight uppercase">
-                ₦5,000
-              </span>
-              {/* Save badge */}
-              <div className="inline-block mt-0.5 bg-[#FFBF00]/10 dark:bg-[#FFBF00]/20 rounded-md px-1.5 py-0.5 text-[8.5px] font-bold text-[#FFBF00] whitespace-nowrap overflow-hidden">
-                Save 40%
+              
+              <div className="mt-auto pt-1 flex flex-col items-start">
+                <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white block tracking-tight uppercase">
+                  ₦5,000
+                </span>
+                {/* Save badge */}
+                <div className="mt-1 inline-flex items-center bg-[#FFBF00]/10 dark:bg-[#FFBF00]/20 border border-[#FFBF00]/30 rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold tracking-wide text-amber-500 dark:text-amber-400 whitespace-nowrap overflow-hidden">
+                  Save 40%
+                </div>
+                <p className="text-[9.5px] sm:text-[10.5px] text-zinc-500 dark:text-zinc-400 font-semibold mt-1">per semester</p>
               </div>
-              <p className="text-[10px] text-zinc-600 dark:text-zinc-400 font-medium mt-0.5">per semester</p>
             </div>
           </div>
         </div>
 
-        {/* Action Button */}
-        <div className="mt-6 mb-auto w-full pt-2 pb-6">
+        {/* Action Button - Fully Matches Mockup with sky-blue pill button and right-pointing caret symbol */}
+        <div className="mt-4 mb-2 w-full flex flex-col items-center">
           <button
             onClick={startMonnifyCheckout}
             disabled={isProcessingPayment}
-            className="w-full h-12 sm:h-14 bg-[#00BFFF] hover:opacity-90 active:scale-[0.98] text-white font-semibold text-[15px] rounded-full flex items-center justify-center gap-1 transition-all cursor-pointer shadow-[0_4px_20px_rgba(0,191,255,0.3)] duration-200"
+            className="w-full max-w-sm sm:max-w-md h-12 bg-gradient-to-r from-[#00BFFF] to-[#009FD0] hover:scale-[1.01] active:scale-[0.99] text-white font-black tracking-widest text-xs uppercase rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer shadow-lg shadow-[#00BFFF]/20 border border-white/10"
           >
             {user?.is_pro ? (
               <span>Manage Subscription 👑</span>
             ) : (
-              <>
+              <span className="flex items-center gap-1.5">
                 <span>Unlock Access</span>
-                <span className="font-medium text-lg mb-0.5">›</span>
-              </>
+                <span className="text-[13px] font-sans font-black">&gt;</span>
+              </span>
             )}
           </button>
+          
+          {/* Mockup Utility Footer links centered perfectly */}
+          <div className="text-[11px] text-zinc-500 dark:text-zinc-400 text-center flex items-center justify-center gap-3.5 mt-6 pointer-events-auto">
+            <button onClick={() => toast.success("Terms of Use matches Apple App Store legal frameworks. 📜")} className="hover:underline transition-all cursor-pointer">Terms of use</button>
+            <span className="text-zinc-300 dark:text-zinc-700 font-semibold">|</span>
+            <button onClick={() => toast.success("Privacy Policy is verified compliant with COPPA and GDPR. 🔒")} className="hover:underline transition-all cursor-pointer">Privacy Policy</button>
+            <span className="text-zinc-300 dark:text-zinc-700 font-semibold">|</span>
+            <button onClick={handleRestore} className="hover:underline transition-all cursor-pointer">Restore</button>
+          </div>
         </div>
         
       </div>

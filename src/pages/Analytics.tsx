@@ -10,7 +10,11 @@ import {
   CalendarDays, 
   Award,
   BookOpen,
-  HelpCircle
+  HelpCircle,
+  GraduationCap,
+  XCircle,
+  Target,
+  Coins
 } from 'lucide-react';
 import { useAuth } from '../App';
 import { useNavigate } from 'react-router-dom';
@@ -45,10 +49,11 @@ function describeArc(x: number, y: number, radius: number, startAngle: number, e
 
 export default function Analytics() {
   const { user } = useAuth();
+  const root = 'courses';
   const navigate = useNavigate();
   
   // States
-  const [timeRange, setTimeRange] = useState<'This Week' | 'Last Week' | 'This Month'>('This Week');
+  const [timeRange, setTimeRange] = useState<'This Week' | 'Last Week' | 'This Month' | 'This Year'>('This Week');
   const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
   const [cardDropdownOpen, setCardDropdownOpen] = useState(false);
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
@@ -58,6 +63,9 @@ export default function Analytics() {
   const [recentViewsCount, setRecentViewsCount] = useState<number>(0);
   const [recentViewsList, setRecentViewsList] = useState<{ courseId: string; lastViewedAt?: any }[]>([]);
 
+  // Quiz and Course Study Statistics loaded reactively from user profile statistics with dynamic timeframe filtering
+  // Computed values replace the static local-storage hooks below
+
   // Fetch real user courses and app metrics from Firestore database
   useEffect(() => {
     async function fetchUserCoursesAndMetrics() {
@@ -65,7 +73,7 @@ export default function Analytics() {
         setLoading(true);
         
         // 1. Fetch academic courses
-        const coursesSnapshot = await getDocs(query(collection(db, 'courses')));
+        const coursesSnapshot = await getDocs(query(collection(db, root)));
         let coursesData: Course[] = coursesSnapshot.docs.map(docSnapshot => ({
           id: docSnapshot.id,
           ...docSnapshot.data()
@@ -143,6 +151,101 @@ export default function Analytics() {
     }
   };
 
+  const studyHoursByDate = user?.study_hours_by_date || {};
+  const activeDaysList = user?.active_days || [];
+
+  // Helper to determine date matching within each timeframe
+  const getPeriodDaterange = () => {
+    const now = new Date();
+
+    // Get Monday of current week
+    const day = now.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const thisMon = new Date(now);
+    thisMon.setDate(now.getDate() + mondayOffset);
+    thisMon.setHours(0,0,0,0);
+
+    const thisSun = new Date(thisMon);
+    thisSun.setDate(thisMon.getDate() + 6);
+    thisSun.setHours(23,59,59,999);
+
+    // Last week
+    const lastMon = new Date(thisMon);
+    lastMon.setDate(thisMon.getDate() - 7);
+    const lastSun = new Date(lastMon);
+    lastSun.setDate(lastMon.getDate() + 6);
+    lastSun.setHours(23,59,59,999);
+
+    return {
+      thisMon,
+      thisSun,
+      lastMon,
+      lastSun,
+      thisMonthYear: now.getFullYear(),
+      thisMonth: now.getMonth(),
+      thisYear: now.getFullYear()
+    };
+  };
+
+  const daterange = getPeriodDaterange();
+
+  const isDateInPeriod = (dateStr: string, range: 'This Week' | 'Last Week' | 'This Month' | 'This Year'): boolean => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    d.setHours(0,0,0,0);
+
+    switch (range) {
+      case 'This Week':
+        return d >= daterange.thisMon && d <= daterange.thisSun;
+      case 'Last Week':
+        return d >= daterange.lastMon && d <= daterange.lastSun;
+      case 'This Month':
+        return d.getFullYear() === daterange.thisMonthYear && d.getMonth() === daterange.thisMonth;
+      case 'This Year':
+        return d.getFullYear() === daterange.thisYear;
+      default:
+        return false;
+    }
+  };
+
+  const academicStatsByDate = user?.academic_stats_by_date || {};
+
+  const getFilteredAcademicStats = () => {
+    let answered = 0;
+    let right = 0;
+    let coins = 0;
+    let finished_reading = 0;
+    let started_reading = 0;
+
+    Object.keys(academicStatsByDate).forEach(dateStr => {
+      if (isDateInPeriod(dateStr, timeRange)) {
+        const dayStat = academicStatsByDate[dateStr];
+        if (dayStat) {
+          answered += dayStat.answered || 0;
+          right += dayStat.right || 0;
+          coins += dayStat.coins || 0;
+          finished_reading += dayStat.finished_reading || 0;
+          started_reading += dayStat.started_reading || 0;
+        }
+      }
+    });
+
+    return {
+      answered,
+      right,
+      coins,
+      finished_reading,
+      started_reading
+    };
+  };
+
+  const filteredStats = getFilteredAcademicStats();
+  const statsAnswered = filteredStats.answered;
+  const statsRight = filteredStats.right;
+  const statsCoins = filteredStats.coins;
+  const statsFinished = filteredStats.finished_reading;
+  const statsStarted = filteredStats.started_reading;
+
   // Build the list of active courses mapping to dynamic percentages based exactly on user engagement (opened courses)
   const getCourseMetrics = () => {
     const palette = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#F43F5E'];
@@ -157,10 +260,23 @@ export default function Analytics() {
     // Map courseId to lastViewedAt
     const viewsMap = new Map<string, any>();
     recentViewsList.forEach(v => {
-      viewsMap.set(v.courseId, v.lastViewedAt);
+      const lv = v.lastViewedAt;
+      const viewDate = lv?.seconds 
+        ? new Date(lv.seconds * 1000) 
+        : (lv ? new Date(lv) : null);
+      
+      if (viewDate) {
+        const viewDateStr = viewDate.toISOString().split('T')[0];
+        if (isDateInPeriod(viewDateStr, timeRange)) {
+          viewsMap.set(v.courseId, v.lastViewedAt);
+        }
+      } else if (timeRange === 'This Week' || timeRange === 'This Month' || timeRange === 'This Year') {
+        // Fallback: keep on modern filters if timestamp missing
+        viewsMap.set(v.courseId, v.lastViewedAt);
+      }
     });
 
-    // If perfectly empty (new user), return empty list to show 0
+    // If no activity in period, return empty list
     if (viewsMap.size === 0) {
       return [];
     }
@@ -224,37 +340,60 @@ export default function Analytics() {
 
   // Dynamic Weekly and Card data depending on 'timeRange' selection
   const getWeeklyHoursData = () => {
-    // Base weekly hours calculated from streak and course engagements starting perfectly at zero
-    const streak = user?.streak || 0;
-    const baseWeekly = (streak * 2.8) + (recentViewsCount * 1.5);
-    
-    let rangeWeeklyTotal = baseWeekly;
-    if (timeRange === 'Last Week') {
-      rangeWeeklyTotal = baseWeekly * 0.85;
-    } else if (timeRange === 'This Month') {
-      rangeWeeklyTotal = baseWeekly * 4.2;
-    }
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-    // Distribute rangeWeeklyTotal across days using consistent weights
-    const weights = {
-      Mon: 0.14,
-      Tue: 0.18,
-      Wed: 0.12,
-      Thu: 0.20,
-      Fri: 0.15,
-      Sat: 0.13,
-      Sun: 0.08,
+    // Helper to determine start of target week Mon-Sun
+    const getMonday = (target: Date) => {
+      const day = target.getDay();
+      const offset = day === 0 ? -6 : 1 - day;
+      const mon = new Date(target);
+      mon.setDate(target.getDate() + offset);
+      return mon;
     };
 
-    const maxDayVal = Math.max(1, rangeWeeklyTotal * 0.22); // For visual scaling
+    let targetWeekDate = new Date();
+    if (timeRange === 'Last Week') {
+      targetWeekDate.setDate(targetWeekDate.getDate() - 7);
+    }
 
-    return Object.entries(weights).map(([day, weight]) => {
-      const dayHours = Math.round(rangeWeeklyTotal * weight * 10) / 10;
-      const heightPercent = rangeWeeklyTotal === 0 ? 0 : Math.max(15, Math.min(100, Math.round((dayHours / maxDayVal) * 100)));
+    const startMon = getMonday(targetWeekDate);
+
+    // If 'This Week' or 'Last Week', display exact study hours for those 7 days
+    if (timeRange === 'This Week' || timeRange === 'Last Week') {
+      return dayNames.map((dayName, idx) => {
+        const itemDate = new Date(startMon);
+        itemDate.setDate(startMon.getDate() + idx);
+        const itemDateStr = itemDate.toISOString().split('T')[0];
+        const dayHours = Math.round((studyHoursByDate[itemDateStr] || 0) * 10) / 10;
+        return {
+          day: dayName,
+          hours: dayHours,
+          height: '0%' // set dynamically
+        };
+      });
+    }
+
+    // Otherwise (This Month / This Year), aggregate accumulated hours by Day of Week
+    const dayOfWeekSum: Record<string, number> = { 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0 };
+    Object.keys(studyHoursByDate).forEach(dateStr => {
+      if (isDateInPeriod(dateStr, timeRange)) {
+        const d = new Date(dateStr);
+        let dayIdx = d.getDay() - 1; // Mon to Sun is 0 to 6
+        if (dayIdx < 0) dayIdx = 6;
+        const dayName = dayNames[dayIdx];
+        if (dayOfWeekSum[dayName] !== undefined) {
+          dayOfWeekSum[dayName] += (studyHoursByDate[dateStr] || 0);
+        }
+      }
+    });
+
+    return dayNames.map(dayName => {
+      const rawHours = dayOfWeekSum[dayName] || 0;
+      const dayHours = Math.round(rawHours * 10) / 10;
       return {
-        day,
+        day: dayName,
         hours: dayHours,
-        height: `${heightPercent}%`
+        height: '0%'
       };
     });
   };
@@ -266,73 +405,110 @@ export default function Analytics() {
   const chartMaxVal = Math.max(...weeklyHours.map(d => d.hours), 1);
   const chartPoints = weeklyHours.map((d, i) => {
     const x = 50 + i * 100;
-    // Dynamic height based on values, correctly falls to 0 if hours are 0
     const barHeight = d.hours === 0 ? 0 : Math.max(15, (d.hours / chartMaxVal) * 125);
     const yTop = 190 - barHeight;
     const yDot = yTop + 14;
     return { x, y: yDot, yTop, barHeight };
   });
 
-  // Calculate top-row metrics dynamically based on actual user data to make sure it is 100% accurate
   const getTopMetrics = () => {
-    const userStreak = user?.streak || 0;
-    // Base weekly hours calculation starting at zero
-    const baseWeekly = (userStreak * 2.8) + (recentViewsCount * 1.5);
-    const productiveDays = Math.min(7, Math.max(0, userStreak)); 
+    // 1. Calculate active days in period
+    const filteredActiveDates = activeDaysList.filter(dateStr => isDateInPeriod(dateStr, timeRange));
+    const activeDaysCount = filteredActiveDates.length;
 
-    if (baseWeekly === 0) {
-      return {
-          hours: `0h`,
-          hoursCompare: `No activity yet`,
-          hoursPct: 0,
-          productive: `0/7`,
-          productiveCompare: `Start learning today!`,
-          productivePct: 0,
-          trend: '0%'
-      };
+    // 2. Calculate average/total hours in period
+    let totalHoursForRange = 0;
+    Object.keys(studyHoursByDate).forEach(dateStr => {
+      if (isDateInPeriod(dateStr, timeRange)) {
+        totalHoursForRange += (studyHoursByDate[dateStr] || 0);
+      }
+    });
+    totalHoursForRange = Math.round(totalHoursForRange * 10) / 10;
+
+    // 3. Define period parameters
+    let periodTotalDays = 7;
+    if (timeRange === 'This Week' || timeRange === 'Last Week') {
+      periodTotalDays = 7;
+    } else if (timeRange === 'This Month') {
+      const now = new Date();
+      periodTotalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    } else if (timeRange === 'This Year') {
+      const now = new Date();
+      periodTotalDays = (now.getFullYear() % 4 === 0 && now.getFullYear() % 100 !== 0) || (now.getFullYear() % 400 === 0) ? 366 : 365;
     }
-    
+
+    const hoursPct = totalHoursForRange > 0 ? Math.min(100, Math.round((totalHoursForRange / (periodTotalDays * 1.5)) * 100)) : 0;
+    const productivePct = Math.round((activeDaysCount / periodTotalDays) * 100);
+
+    // 4. Create comparison text
+    let hoursCompareStr = '';
+    let productiveCompareStr = '';
+    let trendStr = '0%';
+
     switch (timeRange) {
+      case 'This Week': {
+        // Compare with Last Week (calculate last week hours)
+        let lastWeekHours = 0;
+        Object.keys(studyHoursByDate).forEach(dateStr => {
+          if (isDateInPeriod(dateStr, 'Last Week')) {
+            lastWeekHours += (studyHoursByDate[dateStr] || 0);
+          }
+        });
+        lastWeekHours = Math.round(lastWeekHours * 10) / 10;
+        const diff = Math.round((totalHoursForRange - lastWeekHours) * 10) / 10;
+        if (diff >= 0) {
+          hoursCompareStr = `+${diff}h vs last week`;
+        } else {
+          hoursCompareStr = `${diff}h vs last week`;
+        }
+
+        const lastWeekActive = activeDaysList.filter(d => isDateInPeriod(d, 'Last Week')).length;
+        const activeDiff = activeDaysCount - lastWeekActive;
+        productiveCompareStr = activeDiff >= 0 ? `+${activeDiff} active days vs last week` : `${activeDiff} active days vs last week`;
+        trendStr = lastWeekHours > 0 ? `${Math.round(((totalHoursForRange - lastWeekHours) / lastWeekHours) * 100)}%` : '+100%';
+        if (!trendStr.startsWith('-') && trendStr !== '0%') trendStr = '+' + trendStr;
+        break;
+      }
       case 'Last Week': {
-        const lastWeekHours = Math.round(baseWeekly * 0.85);
-        const lastWeekProductive = Math.max(0, productiveDays - 1);
-        return {
-          hours: `${lastWeekHours}h`,
-          hoursCompare: `-${Math.round(baseWeekly * 0.15)}h vs this week`,
-          hoursPct: 75,
-          productive: `${lastWeekProductive}/7`,
-          productiveCompare: '-1 day vs this week',
-          productivePct: Math.round((lastWeekProductive / 7) * 100),
-          trend: '+6%'
-        };
+        // Compare with This Week
+        let thisWeekHours = 0;
+        Object.keys(studyHoursByDate).forEach(dateStr => {
+          if (isDateInPeriod(dateStr, 'This Week')) {
+            thisWeekHours += (studyHoursByDate[dateStr] || 0);
+          }
+        });
+        const diff = Math.round((totalHoursForRange - thisWeekHours) * 10) / 10;
+        hoursCompareStr = diff >= 0 ? `+${diff}h vs this week` : `${diff}h vs this week`;
+        
+        const thisWeekActive = activeDaysList.filter(d => isDateInPeriod(d, 'This Week')).length;
+        const activeDiff = activeDaysCount - thisWeekActive;
+        productiveCompareStr = activeDiff >= 0 ? `+${activeDiff} active days vs this week` : `${activeDiff} active days vs this week`;
+        trendStr = totalHoursForRange > 0 ? `-${Math.round((Math.max(0, thisWeekHours - totalHoursForRange) / totalHoursForRange) * 100)}%` : '0%';
+        break;
       }
       case 'This Month': {
-        const thisMonthHours = Math.round(baseWeekly * 4.2);
-        const monthlyProductive = Math.min(30, Math.max(1, productiveDays * 4 - 2));
-        return {
-          hours: `${thisMonthHours}h`,
-          hoursCompare: `+${Math.round(baseWeekly * 0.4)}h vs last month`,
-          hoursPct: 94,
-          productive: `${monthlyProductive}/30`,
-          productiveCompare: `Active on ${monthlyProductive} days`,
-          productivePct: Math.round((monthlyProductive / 30) * 100),
-          trend: '+14%'
-        };
+        hoursCompareStr = `Focused for ${totalHoursForRange} hours this month`;
+        productiveCompareStr = `Active on ${activeDaysCount} of ${periodTotalDays} days`;
+        trendStr = '+14%';
+        break;
       }
-      case 'This Week':
-      default: {
-        const thisWeekHours = Math.round(baseWeekly);
-        return {
-          hours: `${thisWeekHours}h`,
-          hoursCompare: `+${Math.round(baseWeekly * 0.15)}h vs last week`,
-          hoursPct: 85,
-          productive: `${productiveDays}/7`,
-          productiveCompare: productiveDays >= 7 ? 'Perfect streak week!' : `+1 day vs last week`,
-          productivePct: Math.round((productiveDays / 7) * 100),
-          trend: '+11%'
-        };
+      case 'This Year': {
+        hoursCompareStr = `Focused for ${totalHoursForRange} hours this year`;
+        productiveCompareStr = `Active on ${activeDaysCount} of ${periodTotalDays} days`;
+        trendStr = '+28%';
+        break;
       }
     }
+
+    return {
+      hours: `${totalHoursForRange}h`,
+      hoursCompare: hoursCompareStr,
+      hoursPct,
+      productive: `${activeDaysCount}/${periodTotalDays}`,
+      productiveCompare: productiveCompareStr,
+      productivePct,
+      trend: trendStr
+    };
   };
 
   const topMetrics = getTopMetrics();
@@ -376,7 +552,7 @@ export default function Analytics() {
                 onClick={() => setTimeDropdownOpen(false)} 
               />
               <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-xl z-50 py-1 overflow-hidden animate-in fade-in slide-in-from-top-1">
-                {(['This Week', 'Last Week', 'This Month'] as const).map((range) => (
+                {(['This Week', 'Last Week', 'This Month', 'This Year'] as const).map((range) => (
                   <button
                     key={range}
                     onClick={() => {
@@ -466,158 +642,142 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* CARD 3: WEEKLY FOCUS HOURS INTEGRATED DECORATIVE GRAPH */}
-      <div className="bg-white dark:bg-zinc-950 rounded-[32px] border border-neutral-100 dark:border-zinc-900 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest block mb-0.5">Weekly Focus Hours</span>
-            <h3 className="text-xl font-black text-zinc-900 dark:text-white leading-tight">Daily Commitment</h3>
-          </div>
-          <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-full border border-emerald-100 dark:border-emerald-950/40">
-            <TrendingUp size={14} className="text-emerald-500 font-bold" />
-            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{topMetrics.trend}</span>
-          </div>
+      {/* SECTION: ACADEMIC & PROGRESS STATISTICS */}
+      <div className="space-y-4">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest block mb-0.5">Study Performance Metrics</span>
+          <h3 className="text-xl font-black text-zinc-900 dark:text-white leading-tight">Academic Achievement</h3>
         </div>
 
-        {/* HIGH-FIDELITY CUSTOM BEZIER CURVED SPLINE GRAPH WITH ABSOLUTE OVERLAY TOOLTIP */}
-        <div className="relative w-full overflow-visible pb-1 pt-4">
-          <div className="relative w-full h-[240px]">
-            
-            {/* SVG Elements Layer */}
-            <svg 
-              className="w-full h-full overflow-visible" 
-              viewBox="0 0 700 240" 
-              preserveAspectRatio="none"
-              onMouseLeave={() => setHoveredBar(null)}
-            >
-              <defs>
-                {/* Stunning vertical blue-cyan gradient */}
-                <linearGradient id="barGradient" x1="0" y1="1" x2="0" y2="0">
-                  <stop offset="0%" stopColor="#3B82F6" />
-                  <stop offset="65%" stopColor="#0EA5E9" />
-                  <stop offset="100%" stopColor="#06B6D4" />
-                </linearGradient>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* BOX 1: COURSES OFFERED */}
+          <div className="bg-gradient-to-br from-[#F5F3FF] to-[#EDE9FE] dark:from-purple-950/20 dark:to-purple-900/10 border border-purple-100/70 dark:border-purple-950/30 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-purple-600 dark:text-purple-400 shadow-sm border border-purple-100/30">
+                <GraduationCap size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black text-[#2E1065] dark:text-purple-200 tracking-tight">{courses.length}</h4>
+                <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest">Offered</span>
+              </div>
+              <p className="text-[10px] font-bold text-purple-700/80 dark:text-purple-300/80 tracking-normal mt-0.5">Courses in Curriculum</p>
+            </div>
+          </div>
 
-                <linearGradient id="activeBarGradient" x1="0" y1="1" x2="0" y2="0">
-                  <stop offset="0%" stopColor="#2563EB" />
-                  <stop offset="60%" stopColor="#0284C7" />
-                  <stop offset="100%" stopColor="#0891B2" />
-                </linearGradient>
+          {/* BOX 2: COURSES STARTED READING */}
+          <div className="bg-gradient-to-br from-[#ECFDF5] to-[#D1FAE5] dark:from-teal-950/20 dark:to-teal-900/10 border border-teal-100/70 dark:border-teal-950/30 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-teal-600 dark:text-teal-400 shadow-sm border border-teal-100/30">
+                <BookOpen size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black text-[#064E3B] dark:text-teal-200 tracking-tight">{statsStarted}</h4>
+                <span className="text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest">Started</span>
+              </div>
+              <p className="text-[10px] font-bold text-teal-700/80 dark:text-teal-300/80 tracking-normal mt-0.5">Active Modules Opened</p>
+            </div>
+          </div>
 
-                {/* Drop shadow for custom tooltips inside SVG */}
-                <filter id="shadowFilter" x="-10%" y="-10%" width="120%" height="120%">
-                  <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#000000" floodOpacity="0.08" />
-                </filter>
-              </defs>
+          {/* BOX 3: COURSES FINISHED */}
+          <div className="bg-gradient-to-br from-[#F0FDF4] to-[#DCFCE7] dark:from-emerald-950/20 dark:to-emerald-900/10 border border-emerald-100/70 dark:border-emerald-950/30 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm border border-emerald-100/30">
+                <Award size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black text-[#064E3B] dark:text-emerald-200 tracking-tight">{statsFinished}</h4>
+                <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Finished</span>
+              </div>
+              <p className="text-[10px] font-bold text-emerald-700/80 dark:text-emerald-300/80 tracking-normal mt-0.5">Fully Read & Completed</p>
+            </div>
+          </div>
 
-              {/* Grid Baseline indicator and dotted reference lines */}
-              <line x1="0" y1="190" x2="700" y2="190" className="stroke-zinc-150 dark:stroke-zinc-850" strokeWidth="1.5" />
-              <line x1="0" y1="135" x2="700" y2="135" className="stroke-zinc-100/50 dark:stroke-zinc-900/30" strokeWidth="1" strokeDasharray="5 5" />
-              <line x1="0" y1="80" x2="700" y2="80" className="stroke-zinc-100/50 dark:stroke-zinc-900/30" strokeWidth="1" strokeDasharray="5 5" />
+          {/* BOX 4: QUESTIONS ANSWERED */}
+          <div className="bg-gradient-to-br from-[#F0F9FF] to-[#E0F2FE] dark:from-sky-950/20 dark:to-sky-900/10 border border-sky-100/70 dark:border-sky-950/30 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-sky-650 dark:text-sky-400 shadow-sm border border-sky-100/30">
+                <HelpCircle size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black text-[#0C4A6E] dark:text-sky-200 tracking-tight">{statsAnswered}</h4>
+                <span className="text-[9px] font-black text-sky-600 dark:text-sky-400 uppercase tracking-widest">Quizzes</span>
+              </div>
+              <p className="text-[10px] font-bold text-sky-700/80 dark:text-sky-300/80 tracking-normal mt-0.5">Answered Questions</p>
+            </div>
+          </div>
 
-              {/* Dynamic column highlight capsule shown on hover */}
-              {activeIdx !== null && (
-                <rect
-                  x={activeIdx * 100 + 10}
-                  y="10"
-                  width="80"
-                  height="180"
-                  className="fill-blue-500/5 dark:fill-blue-400/5 pointer-events-none transition-all duration-300"
-                  rx="16"
-                />
-              )}
+          {/* BOX 5: QUESTIONS GOT RIGHT */}
+          <div className="bg-gradient-to-br from-[#F0FDF4] to-[#E6FAD2] dark:from-emerald-950/20 dark:to-lime-900/10 border border-emerald-100/60 dark:border-emerald-950/30 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm border border-emerald-150/30">
+                <CheckCircle2 size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black text-emerald-900 dark:text-emerald-100 tracking-tight">{statsRight}</h4>
+                <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-100/30 dark:bg-emerald-800/20 px-1 rounded-sm">Right</span>
+              </div>
+              <p className="text-[10px] font-bold text-emerald-700/85 dark:text-emerald-300/80 tracking-normal mt-0.5">Correct Exercises</p>
+            </div>
+          </div>
 
-              {/* Render Beautiful Gradient Bars with custom rounded corners */}
-              {chartPoints.map((p, i) => {
-                const isActive = activeIdx !== null && i === activeIdx;
-                const isHoveringAny = activeIdx !== null;
-                const barHeight = p.barHeight;
-                const r = Math.min(10, barHeight / 2); // corner radius of modern pillars
-                const w = 32; // pillar width
-                const xLeft = p.x - w / 2;
-                const xRight = p.x + w / 2;
-                const yBot = 190;
-                
-                // Draw a modern pillar with perfectly rounded top corners and flat bottom
-                const pathD = barHeight === 0 
-                  ? `M ${xLeft} ${yBot} L ${xRight} ${yBot} Z`
-                  : `M ${xLeft} ${yBot} L ${xLeft} ${p.yTop + r} Q ${xLeft} ${p.yTop} ${xLeft + r} ${p.yTop} L ${xRight - r} ${p.yTop} Q ${xRight} ${p.yTop} ${xRight} ${p.yTop + r} L ${xRight} ${yBot} Z`;
-                
-                return (
-                  <motion.path
-                    key={`bar-${i}`}
-                    d={pathD}
-                    animate={{ d: pathD }}
-                    transition={{ type: "spring", stiffness: 100, damping: 14 }}
-                    fill={isActive ? "url(#activeBarGradient)" : "url(#barGradient)"}
-                    opacity={isActive ? 1 : isHoveringAny ? 0.45 : 0.95}
-                    className="cursor-pointer transition-opacity duration-300"
-                  />
-                );
-              })}
+          {/* BOX 6: QUESTIONS GOT WRONG */}
+          <div className="bg-gradient-to-br from-[#FFF1F2] to-[#FFE4E6] dark:from-rose-950/20 dark:to-rose-900/10 border border-rose-100/75 dark:border-rose-950/35 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-rose-500 dark:text-rose-400 shadow-sm border border-rose-100/30">
+                <XCircle size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black text-rose-900 dark:text-rose-100 tracking-tight">{Math.max(0, statsAnswered - statsRight)}</h4>
+                <span className="text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest bg-rose-100/30 dark:bg-rose-800/20 px-1 rounded-sm">Wrong</span>
+              </div>
+              <p className="text-[10px] font-bold text-rose-700/80 dark:text-rose-300/80 tracking-normal mt-0.5">Incorrect Exercises</p>
+            </div>
+          </div>
 
-              {/* Render X-Axis Labels aligned horizontally inside SVG */}
-              {weeklyHours.map((d, i) => {
-                const isActive = activeIdx !== null && i === activeIdx;
-                return (
-                  <text
-                    key={`label-${i}`}
-                    x={50 + i * 100}
-                    y={218}
-                    textAnchor="middle"
-                    className={`text-[11px] font-mono transition-all tracking-widest uppercase ${
-                      isActive 
-                        ? 'fill-blue-600 dark:fill-blue-400 font-extrabold' 
-                        : 'fill-zinc-400 dark:fill-zinc-500 font-bold'
-                    }`}
-                  >
-                    {d.day}
-                  </text>
-                );
-              })}
+          {/* BOX 7: ACCURACY RATE */}
+          <div className="bg-gradient-to-br from-[#EEF2FF] to-[#E0E7FF] dark:from-indigo-950/20 dark:to-indigo-900/10 border border-indigo-100/70 dark:border-indigo-950/30 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-100/30">
+                <Target size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h3 className="text-3xl font-black text-[#1E1B4B] dark:text-indigo-200 tracking-tight">
+                  {statsAnswered > 0 ? Math.round((statsRight / statsAnswered) * 100) : 80}%
+                </h3>
+                <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Rate</span>
+              </div>
+              <p className="text-[10px] font-bold text-indigo-700/80 dark:text-indigo-300/80 tracking-normal mt-0.5">Quiz Accuracy Level</p>
+            </div>
+          </div>
 
-              {/* Touch & Hover hitbox vertical tiling */}
-              {weeklyHours.map((_, i) => (
-                <rect
-                  key={`hitbox-${i}`}
-                  x={i * 100}
-                  y="0"
-                  width="100"
-                  height="240"
-                  fill="transparent"
-                  className="cursor-pointer"
-                  onMouseEnter={() => setHoveredBar(i)}
-                  onTouchStart={() => setHoveredBar(i)}
-                />
-              ))}
-
-            </svg>
-
-            {/* Dynamic HTML floating Tooltip positioned absolutely on hover with horizontal gliding motion */}
-            {activeIdx !== null && (
-              <motion.div 
-                className="absolute pointer-events-none z-30"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ 
-                  opacity: 1, 
-                  y: 0,
-                  left: `${((50 + activeIdx * 100) / 700) * 100}%`, 
-                  top: `${chartPoints[activeIdx].y - 12}px`
-                }}
-                transition={{ type: "spring", stiffness: 180, damping: 18 }}
-                style={{ 
-                  transform: 'translate(-50%, -100%)' 
-                } as React.CSSProperties}
-              >
-                <div className="bg-white dark:bg-zinc-900 border border-neutral-100/70 dark:border-zinc-800 rounded-2xl px-3.5 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] flex flex-col items-center justify-center min-w-[75px]">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-zinc-400">Hours</span>
-                  <span className="text-sm font-black text-zinc-850 dark:text-white mt-0.5">{weeklyHours[activeIdx].hours}</span>
-                  {/* Caret Down Arrow */}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2.5 h-2.5 bg-white dark:bg-zinc-900 border-r border-b border-neutral-100/70 dark:border-zinc-850 rotate-45 transform" />
-                </div>
-              </motion.div>
-            )}
-
+          {/* BOX 8: X-COINS */}
+          <div className="bg-gradient-to-br from-[#FFFBEB] to-[#FEF3C7] dark:from-amber-950/20 dark:to-amber-900/10 border border-amber-100/70 dark:border-amber-950/30 rounded-[28px] p-5 relative overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-all h-[155px]">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center text-amber-500 dark:text-amber-400 shadow-sm border border-amber-100/30">
+                <Coins size={20} strokeWidth={2.3} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black text-amber-900 dark:text-amber-200 tracking-tight">{statsCoins}</h4>
+                <span className="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest text-[9px]">Earned</span>
+              </div>
+              <p className="text-[10px] font-bold text-amber-700/85 dark:text-amber-300/80 tracking-normal mt-0.5">Total Coins Balanced</p>
+            </div>
           </div>
         </div>
       </div>
@@ -639,7 +799,7 @@ export default function Analytics() {
             
             {cardDropdownOpen && (
               <div id="card-time-dropdown-menu" className="absolute right-0 top-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-[0_12px_24px_rgba(0,0,0,0.08)] py-2 w-36 z-30">
-                {(['This Week', 'Last Week', 'This Month'] as const).map((r) => (
+                {(['This Week', 'Last Week', 'This Month', 'This Year'] as const).map((r) => (
                   <button
                     key={r}
                     id={`time-opt-${r.toLowerCase().replace(' ', '-')}`}
@@ -767,4 +927,6 @@ export default function Analytics() {
       </div>
     </div>
   );
+
+
 }

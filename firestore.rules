@@ -78,6 +78,47 @@ service cloud.firestore {
       allow update: if request.auth != null;
     }
 
+    match /{path=**}/ocw_departments/{deptId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{path=**}/ocw_levels/{levelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{path=**}/ocwCourses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /{path=**}/ocwDepartments/{deptId} {
+      allow read: if true;
+    }
+    match /{path=**}/ocw_courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{path=**}/ocw_topics/{topicId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if request.auth != null;
+    }
+
+    match /{path=**}/categories/{docId} {
+      allow read: if true;
+    }
+    match /{document=**} {
+      allow read: if true;
+    }
+    match /{path=**}/curriculum/{docId} {
+      allow read: if true;
+    }
+    match /{path=**}/curriculums/{docId} {
+      allow read: if true;
+    }
+      
     match /users/{userId} {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       allow create, update: if request.auth != null && request.auth.uid == userId;

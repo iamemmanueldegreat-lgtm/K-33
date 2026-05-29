@@ -6,6 +6,7 @@ import { twMerge } from 'tailwind-merge';
 import { useAuth } from '../App';
 import { useEffect } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
+import PWAPromptBanner from '../components/PWAPromptBanner';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -14,6 +15,17 @@ function cn(...inputs: ClassValue[]) {
 export default function MainLayout() {
   const { user } = useAuth();
   const location = useLocation();
+
+  // Track SPA route navigation events in Google Analytics (gtag.js)
+  useEffect(() => {
+    if (typeof (window as any).gtag === 'function') {
+      (window as any).gtag('config', 'G-52M2R0WYH0', {
+        page_path: location.pathname + location.search,
+        page_title: document.title || 'Kortex'
+      });
+    }
+  }, [location.pathname, location.search]);
+
   const isChatPage = location.pathname === '/chat';
   const isProfilePage = location.pathname === '/profile';
   const isCoursePage = location.pathname.startsWith('/course/');
@@ -28,6 +40,9 @@ export default function MainLayout() {
       !hideTabBar && "pb-20",
       (isChatPage || isCoursePage || isBillingPage) && "h-[100dvh] overflow-hidden !pb-0" // override to prevent main page scroll
     )}>
+      {/* Dynamic PWA installation reminder banner */}
+      <PWAPromptBanner />
+
       <main className={cn(
         "flex-1 flex flex-col w-full min-h-0",
         (!isChatPage && !isProfilePage && !isCoursePage && !isBillingPage) ? "p-4 sm:p-6 xl:p-8" : "p-0"

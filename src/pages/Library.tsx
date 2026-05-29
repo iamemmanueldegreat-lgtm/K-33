@@ -59,10 +59,12 @@ const getCourseSemester = (course: Course): 'First Semester' | 'Second Semester'
 
 export default function Library() {
   const { user } = useAuth();
+  const selectedCurriculum = 'School Curriculum';
+  const root = 'courses';
   const userId = user?.id || 'anonymous';
 
   // Synchronously retrieve cached courses from memory or localStorage
-  const cached = useState(() => {
+  const cached = (() => {
     if (globalCoursesCacheByUserId[userId]) {
       return globalCoursesCacheByUserId[userId];
     }
@@ -79,7 +81,7 @@ export default function Library() {
       console.warn('Failed to parse courses cache from localStorage', e);
     }
     return null;
-  })[0];
+  })();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSemester, setSelectedSemester] = useState<'First Semester' | 'Second Semester'>('First Semester');
@@ -95,10 +97,24 @@ export default function Library() {
   const [loading, setLoading] = useState(!cached);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const memCache = globalCoursesCacheByUserId[userId];
+    if (memCache && memCache.length > 0) {
+      setCourses(memCache);
+      const lastId = lastSelectedCourseIdByUserId[userId];
+      setSelectedCourse(memCache.find(c => c.id === lastId) || memCache[0] || null);
+    } else {
+      setCourses([]);
+      setSelectedCourse(null);
+    }
+  }, [userId]);
+
   // Synchronously keep selectedCourse valid for the active semester filter
   useEffect(() => {
     if (courses.length > 0) {
-      const semCourses = courses.filter(c => getCourseSemester(c) === selectedSemester);
+      let curriculumCourses = courses;
+      
+      const semCourses = curriculumCourses.filter(c => getCourseSemester(c) === selectedSemester);
       if (semCourses.length > 0) {
         const isCurrentInSem = semCourses.some(c => c.id === selectedCourse?.id);
         if (!isCurrentInSem) {
@@ -124,7 +140,7 @@ export default function Library() {
       setLoading(true);
     }
     try {
-      const q = query(collection(db, 'courses'));
+      const q = query(collection(db, root));
       const querySnapshot = await getDocs(q);
       
       let coursesData = querySnapshot.docs.map((docSnapshot) => {
@@ -135,15 +151,15 @@ export default function Library() {
 
       if (!user?.is_admin) {
         const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
-        coursesData = coursesData.filter(c => 
-          c.school === user?.school &&
-          departments.includes(c.department) &&
-          (c.level === user?.level || c.level === 'All Levels' || !c.level)
-        );
+        coursesData = coursesData.filter(c => {
+          return c.school === user?.school &&
+            departments.includes(c.department) &&
+            (c.level === user?.level || c.level === 'All Levels' || !c.level);
+        });
       }
       
       const coursesPromises = coursesData.map(async (course) => {
-        const topicsQuery = query(collection(db, `courses/${course.id}/topics`));
+        const topicsQuery = query(collection(db, `${root}/${course.id}/topics`));
         const topicsSnapshot = await getDocs(topicsQuery);
         const topics: Topic[] = [];
         topicsSnapshot.forEach(topicDoc => {
@@ -233,7 +249,9 @@ export default function Library() {
     return chapters;
   };
 
-  const filteredCourses = courses.filter(c => 
+  let curriculumCourses = courses;
+
+  const filteredCourses = curriculumCourses.filter(c => 
     c.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -254,11 +272,12 @@ export default function Library() {
       return getCourseChapters(selectedCourse).map((ch, idx) => ({
         ...ch,
         courseCode: selectedCourse.code,
+        courseTitle: selectedCourse.title,
         courseId: selectedCourse.id,
         index: idx
       }));
     } else {
-      const combined: Array<{ name: string; order: number; topics: Topic[]; courseCode: string; courseId: string; index: number }> = [];
+      const combined: Array<{ name: string; order: number; topics: Topic[]; courseCode: string; courseTitle: string; courseId: string; index: number }> = [];
       let globalIdx = 0;
       semesterCourses.forEach(c => {
         const chaptersList = getCourseChapters(c);
@@ -266,6 +285,7 @@ export default function Library() {
           combined.push({
             ...ch,
             courseCode: c.code,
+            courseTitle: c.title,
             courseId: c.id,
             index: globalIdx++
           });
@@ -306,23 +326,25 @@ export default function Library() {
         />
       </div>
 
-      {/* Dropdown Menu (Semester selectors) and Grid Layout Toggler */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="relative inline-block w-48">
-          <select
-            value={selectedSemester}
-            onChange={(e) => {
-              const sem = e.target.value as 'First Semester' | 'Second Semester';
-              setSelectedSemester(sem);
-              setSearchTerm('');
-            }}
-            className="w-full appearance-none bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl py-2.5 pl-4 pr-10 text-xs font-black text-neutral-850 dark:text-neutral-100 focus:outline-none cursor-pointer"
-          >
-            <option value="First Semester">First Semester</option>
-            <option value="Second Semester">Second Semester</option>
-          </select>
-          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
-            <ChevronDown size={14} className="stroke-[3]" />
+      {/* Dropdown Menu (Semester selector) and Grid Layout Toggler */}
+      <div className="flex flex-wrap items-center justify-between pt-1 gap-2">
+        <div className="flex items-center gap-2 flex-1">
+          <div className="relative inline-block w-full max-w-[240px]">
+            <select
+              value={selectedSemester}
+              onChange={(e) => {
+                const sem = e.target.value as 'First Semester' | 'Second Semester';
+                setSelectedSemester(sem);
+                setSearchTerm('');
+              }}
+              className="w-full appearance-none bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl py-2.5 pl-4 pr-10 text-[11px] font-black tracking-wide text-neutral-850 dark:text-neutral-100 focus:outline-none cursor-pointer uppercase truncate"
+            >
+              <option value="First Semester">First Semester</option>
+              <option value="Second Semester">Second Semester</option>
+            </select>
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+              <ChevronDown size={14} className="stroke-[3]" />
+            </div>
           </div>
         </div>
 
@@ -433,7 +455,7 @@ export default function Library() {
 
                       {/* Course code label indicators if inside #All view */}
                       {selectedCourse === null && (
-                        <span className="text-[9px] font-black font-mono tracking-wider bg-black/10 text-neutral-900 px-2 py-0.5 rounded-full uppercase">
+                        <span className="text-[9px] font-black font-mono tracking-wider bg-black/10 text-neutral-900 px-2 py-0.5 rounded-full uppercase max-w-[120px] truncate overflow-hidden">
                           {chapter.courseCode}
                         </span>
                       )}

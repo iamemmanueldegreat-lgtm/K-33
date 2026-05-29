@@ -16,6 +16,7 @@ export default function Study() {
   const { courseId, topicId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const root = 'courses';
   const [content, setContent] = useState<string>('');
   const [keyTakeaways, setKeyTakeaways] = useState<string>('');
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
@@ -67,13 +68,13 @@ export default function Study() {
 
         if (isOnline) {
           try {
-            const courseDoc = await getDoc(doc(db, 'courses', courseId));
+            const courseDoc = await getDoc(doc(db, root, courseId));
             if (courseDoc.exists()) {
               courseTitle = courseDoc.data().title || courseId;
               localStorage.setItem(`offline_course_title_${courseId}`, courseTitle);
             }
             
-            const topicsSnapshot = await getDocs(collection(db, `courses/${courseId}/topics`));
+            const topicsSnapshot = await getDocs(collection(db, `${root}/${courseId}/topics`));
             fetchedTopicsList = topicsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Topic));
             localStorage.setItem(`offline_topics_list_${courseId}`, JSON.stringify(fetchedTopicsList));
           } catch (fireErr) {
@@ -172,7 +173,7 @@ export default function Study() {
 
               // Update Firestore backend asynchronously (don't block the user if it fails or lags due to permissions)
               try {
-                const topicRef = doc(db, `courses/${courseId}/topics`, topicId);
+                const topicRef = doc(db, `${root}/${courseId}/topics`, topicId);
                 await updateDoc(topicRef, {
                   content: studyPackage.content,
                   key_takeaways: studyPackage.key_takeaways,

@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { Settings, LogOut, ChevronRight, Shield, Bell, CreditCard, ExternalLink, GraduationCap, Camera, Loader2, User, Mail, MapPin, Crown, Sparkles } from 'lucide-react';
+import { Settings, LogOut, ChevronRight, Shield, Bell, CreditCard, ExternalLink, GraduationCap, Camera, Loader2, User, Mail, MapPin, Crown, Sparkles, Download, Smartphone, Share, Plus, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { usePWA } from '../hooks/usePWA';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
@@ -15,6 +16,9 @@ export default function Profile() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const { isInstalled, installable, isIPhone, triggerInstall } = usePWA();
+  const [showInstructions, setShowInstructions] = useState(false);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -218,6 +222,155 @@ export default function Profile() {
             </div>
           </div>
         </motion.div>
+
+        {/* PWA Installation Bento Card */}
+        <div className="relative overflow-hidden rounded-[32px] p-6 sm:p-8 bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-indigo-500/10 dark:from-purple-500/5 dark:to-indigo-500/5 border border-purple-500/20 dark:border-purple-400/20 shadow-md">
+          {/* Subtle glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/5 rounded-full blur-[40px] pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-3 max-w-lg">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20">
+                <Smartphone size={14} className="text-purple-600 dark:text-purple-400" />
+                <span className="text-[10px] sm:text-xs font-black uppercase text-purple-700 dark:text-purple-300 tracking-widest">Progressive Web App</span>
+              </div>
+              
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+                  {isInstalled ? "App Installed on Device" : "Install Kortex AI App"}
+                </h3>
+                <p className="text-zinc-600 dark:text-zinc-400 text-xs sm:text-[13px] leading-relaxed mt-1">
+                  Add Kortex AI to your screen as a standalone experience. Supports fast local loading, full-screen study guides, responsive native scrolling, and persistent offline fallbacks.
+                </p>
+              </div>
+            </div>
+
+            <div className="shrink-0 flex items-center md:self-center">
+              {isInstalled ? (
+                <div className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-black uppercase tracking-wider select-none">
+                  <CheckCircle2 size={16} />
+                  <span>App Installed</span>
+                </div>
+              ) : isIPhone ? (
+                <button
+                  onClick={() => setShowInstructions(true)}
+                  className="inline-flex items-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-500/25 dark:shadow-purple-500/10 active:scale-95 transition-all text-center justify-center cursor-pointer"
+                >
+                  <Share size={16} />
+                  <span>Install App</span>
+                </button>
+              ) : installable ? (
+                <button
+                  onClick={async () => {
+                    const success = await triggerInstall();
+                    if (success) {
+                      toast.success("Thank you for installing Kortex AI!");
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-500/25 dark:shadow-purple-500/10 active:scale-95 transition-all text-center justify-center cursor-pointer"
+                >
+                  <Download size={16} />
+                  <span>Install App</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowInstructions(true)}
+                  className="inline-flex items-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-500/25 dark:shadow-purple-500/10 active:scale-95 transition-all text-center justify-center cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>Manual Install</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* iOS/Browser Manual Installation Instructions Modal */}
+        <AnimatePresence>
+          {showInstructions && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white dark:bg-[#121218] border border-border dark:border-white/10 rounded-[32px] p-6 max-w-sm w-full shadow-2xl relative z-50 text-text"
+              >
+                {/* Close button */}
+                <button
+                  onClick={() => setShowInstructions(false)}
+                  className="absolute top-4 right-4 p-2 text-muted hover:text-text rounded-full hover:bg-neutral-100 dark:hover:bg-white/5 active:scale-90 transition-all cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+
+                <header className="flex flex-col items-center text-center mt-2 mb-6">
+                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-3">
+                    <Smartphone size={24} />
+                  </div>
+                  <h4 className="text-lg font-bold tracking-tight text-neutral-900 dark:text-zinc-100">
+                    {isIPhone ? 'Install on iOS Safari' : 'Installation Guide'}
+                  </h4>
+                  <p className="text-xs text-muted mt-1 leading-relaxed text-zinc-500 dark:text-zinc-400">
+                    Add Kortex AI to your Home Screen to unlock a full-screen, native student experience.
+                  </p>
+                </header>
+
+                <div className="space-y-4">
+                  {isIPhone ? (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">1</div>
+                        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
+                          Tap the <strong className="text-primary inline-flex items-center gap-0.5"><Share size={12} className="inline" /> Share</strong> button in Safari's bottom toolbar.
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">2</div>
+                        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
+                          Scroll down and tap <strong className="text-primary inline-flex items-center gap-0.5"><Plus size={12} className="inline" /> Add to Home Screen</strong>.
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">3</div>
+                        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
+                          Confirm by clicking <strong className="text-primary">Add</strong> in the top right. Kortex AI will appear as a premium app on your home screen!
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">1</div>
+                        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
+                          Open your mobile browser or desktop Chrome/Edge settings menu (usually the three dots <strong className="text-primary font-mono font-black">⋮</strong> icon).
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">2</div>
+                        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
+                          Select <strong className="text-primary">Install Kortex AI</strong> or <strong className="text-primary">Add to Home Screen</strong>.
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">3</div>
+                        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
+                          Accept the confirmation popup to create your launch shortcut.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setShowInstructions(false)}
+                  className="w-full mt-6 py-3 bg-primary text-white rounded-2xl text-xs font-bold uppercase tracking-wider hover:bg-opacity-95 active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  Got it, thanks!
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between px-2">

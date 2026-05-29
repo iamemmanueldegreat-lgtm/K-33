@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, Target, Play, RotateCcw, CheckCircle2, XCircle, BrainCircuit, Sparkles, AlertCircle, ChevronRight, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Course, Topic } from '../types';
+import { useAuth } from '../App';
+import { db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 type SessionState = 'SETUP' | 'GENERATING' | 'QUIZ' | 'RESULTS';
 
@@ -23,6 +26,7 @@ interface PracticeQuizProps {
 }
 
 export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preGeneratedQuestions }: PracticeQuizProps) {
+  const { user } = useAuth();
   // Flow states
   const [sessionState, setSessionState] = useState<SessionState>('SETUP');
   const [numQuestions, setNumQuestions] = useState(5);
@@ -132,8 +136,40 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
     }
   };
 
-  const handleFinishQuiz = () => {
+  const handleFinishQuiz = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
+    
+    // Save quiz stats to Firestore for real-time analytics tracking
+    try {
+      if (user && user.id) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const docRef = doc(db, 'users', user.id);
+        const statsByDate = { ...(user.academic_stats_by_date || {}) };
+        
+        const currentToday = statsByDate[todayStr] || {
+          answered: 0,
+          right: 0,
+          coins: 0,
+          finished_reading: 0,
+          started_reading: 0
+        };
+
+        statsByDate[todayStr] = {
+          answered: currentToday.answered + questions.length,
+          right: currentToday.right + score,
+          coins: currentToday.coins + (score * 10),
+          finished_reading: currentToday.finished_reading + (score === questions.length ? 1 : 0),
+          started_reading: currentToday.started_reading + (score !== questions.length ? 1 : 0)
+        };
+
+        await updateDoc(docRef, {
+          academic_stats_by_date: statsByDate
+        });
+      }
+    } catch (e) {
+      console.error("Failed to persist stats securely to Firestore:", e);
+    }
+
     setSessionState('RESULTS');
   };
 

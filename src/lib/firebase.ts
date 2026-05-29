@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { initializeFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc, addDoc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getAnalytics, isSupported } from 'firebase/analytics';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -12,6 +13,18 @@ export const db = initializeFirestore(app, {
 
 export const auth = getAuth();
 export const storage = getStorage(app);
+
+export let analytics: any = null;
+isSupported().then((supported) => {
+  if (supported) {
+    analytics = getAnalytics(app);
+    console.log("Firebase Analytics initialized successfully.");
+  } else {
+    console.log("Firebase Analytics is not supported in this environment (e.g., inside an iframe).");
+  }
+}).catch((err) => {
+  console.warn("Firebase Analytics initialization skipped or failed:", err);
+});
 
 // Validate Connection to Firestore
 export async function testConnection() {
