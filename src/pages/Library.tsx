@@ -84,7 +84,13 @@ export default function Library() {
   })();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSemester, setSelectedSemester] = useState<'First Semester' | 'Second Semester'>('First Semester');
+  const [selectedSemester, setSelectedSemester] = useState<'First Semester' | 'Second Semester'>(() => {
+    try {
+      const stored = localStorage.getItem('selected_semester');
+      if (stored === 'First Semester' || stored === 'Second Semester') return stored;
+    } catch {}
+    return 'Second Semester';
+  });
   const [courses, setCourses] = useState<Course[]>(cached || []);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(() => {
     if (cached && cached.length > 0) {
@@ -258,12 +264,6 @@ export default function Library() {
 
   const semesterCourses = filteredCourses.filter(c => getCourseSemester(c) === selectedSemester);
 
-  const CARD_ROTATIONS = [
-    'hover:rotate-0 hover:scale-[1.03] rotate-[-1.5deg] hover:shadow-lg transition-all duration-300',
-    'hover:rotate-0 hover:scale-[1.03] rotate-[1.5deg] hover:shadow-lg transition-all duration-300',
-    'hover:rotate-0 hover:scale-[1.02] rotate-[-1deg] hover:shadow-lg transition-all duration-300',
-    'hover:rotate-0 hover:scale-[1.03] rotate-[2deg] hover:shadow-lg transition-all duration-300'
-  ];
 
   const CHAPTER_STAMPS = [Layers, Award, BookOpen, Calendar];
 
@@ -336,6 +336,7 @@ export default function Library() {
                 const sem = e.target.value as 'First Semester' | 'Second Semester';
                 setSelectedSemester(sem);
                 setSearchTerm('');
+                try { localStorage.setItem('selected_semester', sem); } catch {}
               }}
               className="w-full appearance-none bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl py-2.5 pl-4 pr-10 text-[11px] font-black tracking-wide text-neutral-850 dark:text-neutral-100 focus:outline-none cursor-pointer uppercase truncate"
             >
@@ -419,7 +420,6 @@ export default function Library() {
             <div className="grid grid-cols-2 gap-4 sm:gap-6 auto-rows-min mt-2 pb-12">
               {getActiveChapters().map((chapter, index) => {
                 const theme = CHAPTER_THEMES[index % CHAPTER_THEMES.length];
-                const rotationClass = CARD_ROTATIONS[index % CARD_ROTATIONS.length];
                 const StampIcon = CHAPTER_STAMPS[index % CHAPTER_STAMPS.length];
                 
                 const topicsCount = chapter.topics?.length ?? 0;
@@ -437,7 +437,8 @@ export default function Library() {
                     className={`
                       relative cursor-pointer group h-52 sm:h-60 p-5 sm:p-6 rounded-[28px] sm:rounded-[32px] 
                       flex flex-col justify-between overflow-hidden border border-black/5 dark:border-none shadow-sm
-                      ${theme.bg} ${rotationClass}
+                      hover:scale-[1.02] hover:shadow-lg transition-all duration-300
+                      ${theme.bg}
                     `}
                   >
                     {/* Doodle stroke overlay matching screenshot 2 */}
@@ -474,17 +475,10 @@ export default function Library() {
                       </p>
                     </div>
 
-                    {/* Lower part: stamp on left, academic badge on right */}
-                    <div className="flex items-center justify-between border-t border-black/5 pt-1.5 sm:pt-2 relative z-10 mt-auto">
-                      <div className="w-5 h-5 sm:w-6.5 sm:h-6.5 rounded-full bg-black/5 flex items-center justify-center text-[#111827]/70">
-                        <StampIcon className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
-                      </div>
-                      
-                      <div className="flex items-center gap-1 bg-white/20 dark:bg-black/10 px-2 py-0.5 rounded-md border border-black/5">
-                        <span className="w-1 h-1 rounded-full bg-emerald-600"></span>
-                        <span className="text-[7.5px] sm:text-[9px] font-black tracking-widest uppercase text-neutral-800/60 font-mono">
-                          {theme.badge}
-                        </span>
+                    {/* Lower part: stamp icon only */}
+                    <div className="flex items-center border-t border-black/5 pt-1.5 sm:pt-2 relative z-10 mt-auto">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-black/5 flex items-center justify-center text-[#111827]/70">
+                        <StampIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       </div>
                     </div>
 
