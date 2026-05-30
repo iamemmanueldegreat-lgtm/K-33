@@ -96,11 +96,9 @@ export default function App() {
         let updatedStudyHours = { ...(profile.study_hours_by_date || {}) };
         let updatedAcademicStats = { ...(profile.academic_stats_by_date || {}) };
 
-        // Ensure current day is registered as active
-        if (!updatedActiveDays.includes(todayStr)) {
-          updatedActiveDays.push(todayStr);
-          requiresUpdate = true;
-        }
+        // Do NOT push today into active_days on every login.
+        // active_days is only updated by the study-time tracker (when actual study occurs).
+        // Analytics derives active days from study_hours_by_date keys with hours > 0.
         if (updatedStudyHours[todayStr] === undefined) {
           updatedStudyHours[todayStr] = 0; // Starts at 0 to track actual real study time
           requiresUpdate = true;
@@ -191,12 +189,18 @@ export default function App() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const profile = docSnap.data();
-          const activeDays: string[] = [...(profile.active_days || [todayStr])];
+          const activeDays: string[] = [...(profile.active_days || [])];
+          const studyHours = { ...(profile.study_hours_by_date || {}) };
+          const MAX_DAILY_HOURS = 16; // prevent absurd values from open tabs
+          studyHours[todayStr] = Math.min(
+            MAX_DAILY_HOURS,
+            Math.round(((studyHours[todayStr] || 0) + hoursEarned) * 100) / 100
+          );
+
+          // Only mark a day as active when actual study time is recorded
           if (!activeDays.includes(todayStr)) {
             activeDays.push(todayStr);
           }
-          const studyHours = { ...(profile.study_hours_by_date || {}) };
-          studyHours[todayStr] = Math.round(((studyHours[todayStr] || 0) + hoursEarned) * 100) / 100;
 
           await updateDoc(docRef, {
             active_days: activeDays,
@@ -209,6 +213,8 @@ export default function App() {
     };
 
     const interval = setInterval(() => {
+      // Only count time when the tab is actually visible (not hidden/background)
+      if (document.visibilityState !== 'visible') return;
       accumulatedSeconds += intervalTime / 1000;
       if (accumulatedSeconds >= saveThreshold / 1000) {
         saveActivity();

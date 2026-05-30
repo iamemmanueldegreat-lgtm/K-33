@@ -152,7 +152,12 @@ export default function Analytics() {
   };
 
   const studyHoursByDate = user?.study_hours_by_date || {};
-  const activeDaysList = user?.active_days || [];
+
+  // Only count a day as "active" if the user actually studied (> 3 minutes = 0.05h).
+  // user.active_days also includes every login day so we deliberately ignore it here.
+  const activeDaysList = Object.keys(studyHoursByDate).filter(
+    d => (studyHoursByDate[d] || 0) > 0.05
+  );
 
   // Helper to determine date matching within each timeframe
   const getPeriodDaterange = () => {
@@ -489,13 +494,50 @@ export default function Analytics() {
       case 'This Month': {
         hoursCompareStr = `Focused for ${totalHoursForRange} hours this month`;
         productiveCompareStr = `Active on ${activeDaysCount} of ${periodTotalDays} days`;
-        trendStr = '+14%';
+        // Compare against same calendar month last year (or prior month if data exists)
+        let lastMonthHours = 0;
+        const nowM = new Date();
+        const lastMonthStart = new Date(nowM.getFullYear(), nowM.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(nowM.getFullYear(), nowM.getMonth(), 0);
+        lastMonthEnd.setHours(23, 59, 59, 999);
+        Object.keys(studyHoursByDate).forEach(dateStr => {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime()) && d >= lastMonthStart && d <= lastMonthEnd) {
+            lastMonthHours += studyHoursByDate[dateStr] || 0;
+          }
+        });
+        lastMonthHours = Math.round(lastMonthHours * 10) / 10;
+        if (lastMonthHours > 0) {
+          const diff = Math.round(((totalHoursForRange - lastMonthHours) / lastMonthHours) * 100);
+          trendStr = diff >= 0 ? `+${diff}%` : `${diff}%`;
+        } else if (totalHoursForRange > 0) {
+          trendStr = '+100%';
+        } else {
+          trendStr = '0%';
+        }
         break;
       }
       case 'This Year': {
         hoursCompareStr = `Focused for ${totalHoursForRange} hours this year`;
         productiveCompareStr = `Active on ${activeDaysCount} of ${periodTotalDays} days`;
-        trendStr = '+28%';
+        // Compare against last year
+        let lastYearHours = 0;
+        const thisYr = new Date().getFullYear();
+        Object.keys(studyHoursByDate).forEach(dateStr => {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime()) && d.getFullYear() === thisYr - 1) {
+            lastYearHours += studyHoursByDate[dateStr] || 0;
+          }
+        });
+        lastYearHours = Math.round(lastYearHours * 10) / 10;
+        if (lastYearHours > 0) {
+          const diff = Math.round(((totalHoursForRange - lastYearHours) / lastYearHours) * 100);
+          trendStr = diff >= 0 ? `+${diff}%` : `${diff}%`;
+        } else if (totalHoursForRange > 0) {
+          trendStr = '+100%';
+        } else {
+          trendStr = '0%';
+        }
         break;
       }
     }
@@ -756,7 +798,7 @@ export default function Analytics() {
             <div>
               <div className="flex items-baseline gap-1.5">
                 <h3 className="text-3xl font-black text-[#1E1B4B] dark:text-indigo-200 tracking-tight">
-                  {statsAnswered > 0 ? Math.round((statsRight / statsAnswered) * 100) : 80}%
+                  {statsAnswered > 0 ? Math.round((statsRight / statsAnswered) * 100) : 0}%
                 </h3>
                 <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Rate</span>
               </div>
