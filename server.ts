@@ -318,7 +318,7 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
 
 async function startServer() {
   const app = express();
-  const PORT = 5000;
+  const PORT = 3000;
 
   // Middleware to log requests
   app.use((req, res, next) => {
