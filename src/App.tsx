@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState } from 'react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -14,6 +14,7 @@ import LoadingScreen from './components/LoadingScreen';
 import premiumHeroBg from './assets/images/premium_hero_bg_1779648931811.png';
 
 import { CurriculumProvider } from './contexts/CurriculumContext';
+import { AuthContext } from './contexts/AuthContext';
 
 const Home = lazy(() => import('./pages/Home'));
 const Library = lazy(() => import('./pages/Library'));
@@ -34,25 +35,6 @@ const AdminRedirect = () => {
   return <LoadingScreen />;
 };
 
-interface AuthContextType {
-  user: UserProfile | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  simulatedRole: 'admin' | 'student';
-  setSimulatedRole: (role: 'admin' | 'student') => void;
-}
-
-const AuthContext = createContext<AuthContextType>({ 
-  user: null, 
-  loading: true, 
-  signOut: async () => {},
-  refreshProfile: async () => {},
-  simulatedRole: 'admin',
-  setSimulatedRole: () => {}
-});
-
-export const useAuth = () => useContext(AuthContext);
 
 export default function App() {
   useEffect(() => {

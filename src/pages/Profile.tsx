@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { Settings, LogOut, ChevronRight, Shield, Bell, CreditCard, ExternalLink, GraduationCap, Camera, Loader2, User, Mail, MapPin, Crown, Sparkles, Download, Smartphone, Share, Plus, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePWA } from '../hooks/usePWA';

@@ -7,7 +7,7 @@ import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { EDO_STATE_SCHOOLS, AUCHI_POLY_DEPARTMENTS, NIGERIAN_SCHOOLS, STANDARD_DEPARTMENTS } from '../lib/constants';
 
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const NIGERIAN_STATES = [

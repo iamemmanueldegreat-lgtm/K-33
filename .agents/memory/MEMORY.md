@@ -1,0 +1,1 @@
+- [React 19 + Vite fastRefresh bug](react19-vite-fastrefresh.md) — fastRefresh must be disabled in @vitejs/plugin-react to prevent "Invalid hook call" errors with React 19.

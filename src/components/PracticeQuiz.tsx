@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, Target, Play, RotateCcw, CheckCircle2, XCircle, BrainCircuit, Sparkles, AlertCircle, ChevronRight, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Course, Topic } from '../types';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 

@@ -3,7 +3,7 @@ import { Home, Library, User, BarChart2, ShieldAlert, FileText, MessageSquare } 
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { useEffect } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
 import PWAPromptBanner from '../components/PWAPromptBanner';

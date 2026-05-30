@@ -7,7 +7,7 @@ import Markdown from 'react-markdown';
 import { toast } from 'react-hot-toast';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, getDocs, query, orderBy, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 import PracticeQuiz from '../components/PracticeQuiz';
 import type { Topic } from '../types';

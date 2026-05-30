@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { Book, Zap, Clock, Trophy, ChevronRight, PlayCircle, BarChart2, MessageSquare, BookOpen, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';

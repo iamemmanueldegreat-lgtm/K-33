@@ -11,7 +11,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';

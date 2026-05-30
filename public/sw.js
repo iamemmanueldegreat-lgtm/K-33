@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kortex-cache-v2';
+const CACHE_NAME = 'kortex-cache-v3';
 const OFFLINE_URL = '/offline.html';
 
 const ASSETS_TO_CACHE = [
@@ -58,12 +58,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Bypass all Vite dev server internals and source files in development
+  if (
+    url.pathname.startsWith('/@vite') ||
+    url.pathname.startsWith('/@react-refresh') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('hot-update') ||
+    url.pathname.includes('.vite')
+  ) {
+    return;
+  }
+
   // Navigation requests: Network-First to get latest HTML state, fallback to offline page
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache a copy of the retrieved page for offline fallback
           if (response.status === 200) {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -73,7 +84,6 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // If network is down, search cache or return the premium offline safety page
           return caches.match(request).then((cachedResp) => {
             return cachedResp || caches.match(OFFLINE_URL);
           });
@@ -82,7 +92,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static Assets and Resources: Cache-First, fall back to network, and dynamically cache successfully fetched local assets
+  // Static Assets and Resources: Cache-First, fall back to network
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -91,13 +101,10 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(request)
         .then((networkResponse) => {
-          // Only cache HTTP 200 success responses, and ensure we do not cache hot-reload modules
           if (
             networkResponse &&
             networkResponse.status === 200 &&
-            networkResponse.type === 'basic' &&
-            !url.pathname.startsWith('/@vite') &&
-            !url.pathname.includes('hot-update')
+            networkResponse.type === 'basic'
           ) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -107,7 +114,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Fallback for missing resources - return cached logo for broken offline images
           if (request.destination === 'image') {
             return caches.match('/logo.png');
           }

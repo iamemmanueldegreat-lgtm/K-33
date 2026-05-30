@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, getDocs, query } from 'firebase/firestore';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import type { Course, Topic } from '../types';
 
 // The 4 pastel colors, star colors, hand-crafted overlay brush strokes and metadata matching screenshot 2.

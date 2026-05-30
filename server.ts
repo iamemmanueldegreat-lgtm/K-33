@@ -318,7 +318,7 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = 5000;
 
   // Middleware to log requests
   app.use((req, res, next) => {
@@ -626,7 +626,7 @@ Make the questions challenging but fair. They must have exactly 4 options.`;
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true as any },
       appType: "spa",
     });
     app.use(vite.middlewares);

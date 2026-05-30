@@ -16,7 +16,7 @@ import {
   Target,
   Coins
 } from 'lucide-react';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
