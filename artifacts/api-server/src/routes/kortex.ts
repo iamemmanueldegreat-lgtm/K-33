@@ -1,15 +1,21 @@
 import { Router, type IRouter } from "express";
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import { jsonrepair } from "jsonrepair";
 
 const router: IRouter = Router();
 
-const Type = {
-  OBJECT: "object",
-  ARRAY: "array",
-  STRING: "string",
-  INTEGER: "integer",
-};
+function getClient(): OpenAI {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    throw new Error("DEEPSEEK_API_KEY is not set. Add it in the Secrets panel.");
+  }
+  return new OpenAI({
+    apiKey,
+    baseURL: "https://api.deepseek.com/v1",
+  });
+}
+
+const MODEL = "deepseek-chat";
 
 function parseJsonSafe(text: string): any {
   try {
@@ -23,61 +29,29 @@ function parseJsonSafe(text: string): any {
   }
 }
 
-function getGeminiClient(): GoogleGenAI {
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (!geminiKey) {
-    throw new Error("GEMINI_API_KEY is not set.");
-  }
-  return new GoogleGenAI({ apiKey: geminiKey });
-}
-
 router.post("/generate-course", async (req, res) => {
   const { department } = req.body;
-  const prompt = `You are a world-class university curriculum designer. Create ONE highly realistic, comprehensive course for the "${department}" department.
-Include:
-1. school (set as "University Level")
-2. code (e.g. "MTH 101")
-3. title
-4. description
-5. topics: an array of at least 8 progressive topics for this course. Each topic should have a "title", "chapter" (the module name), "chapter_order", and "order".`;
 
   try {
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction:
-          "You are a professional university curriculum designer. Return ONLY a valid JSON object matching the requested schema.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            school: { type: Type.STRING },
-            code: { type: Type.STRING },
-            title: { type: Type.STRING },
-            description: { type: Type.STRING },
-            topics: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  chapter: { type: Type.STRING },
-                  chapter_order: { type: Type.INTEGER },
-                  order: { type: Type.INTEGER },
-                },
-                required: ["title", "chapter", "chapter_order", "order"],
-              },
-            },
-          },
-          required: ["school", "code", "title", "description", "topics"],
+    const client = getClient();
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            'You are a professional university curriculum designer. Return ONLY a valid JSON object with fields: school (string, set to "University Level"), code (string, e.g. "MTH 101"), title (string), description (string), topics (array of objects with fields: title, chapter, chapter_order, order).',
         },
-      },
-    } as any);
+        {
+          role: "user",
+          content: `Create ONE highly realistic, comprehensive university course for the "${department}" department. Include at least 8 progressive topics.`,
+        },
+      ],
+    });
 
-    const responseText = response.text || "{}";
-    return res.json(parseJsonSafe(responseText));
+    const text = response.choices[0]?.message?.content || "{}";
+    return res.json(parseJsonSafe(text));
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to generate course" });
   }
@@ -86,9 +60,17 @@ Include:
 router.post("/generate-study", async (req, res) => {
   const { topic, course, level, department, school } = req.body;
 
-  const systemPrompt = `You are Kortex AI, an AI tutor for university students. Teach topics clearly and adapt to the student's department (${department || "General"}), course (${course || "General"}), and level (${level || "Undergraduate"}).
+  try {
+    const client = getClient();
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are Kortex AI, an expert university tutor. Adapt all explanations to: department (${department || "General"}), course (${course || "General"}), level (${level || "Undergraduate"}), school (${school || "University"}).
 
-Structure your 'content' using these markdown sections:
+Structure the "content" field using these markdown sections (always insert blank lines between sections):
 ### Definition
 ### Why It Is Important
 ### Main Components or Concepts
@@ -99,44 +81,20 @@ Structure your 'content' using these markdown sections:
 ### Key Points to Remember
 ### Common Examination Questions
 
-Return ONLY valid JSON with: content (detailed markdown study guide), key_takeaways (markdown string), quiz_questions (array of 5 questions).`;
-
-  const prompt = `Write a detailed study guide, key takeaways, and exactly 5 quiz questions for topic "${topic}" in course "${course}" for a ${level || "Undergraduate"} student in ${department || "General"} department at ${school || "University"}.`;
-
-  try {
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            content: { type: Type.STRING },
-            key_takeaways: { type: Type.STRING },
-            quiz_questions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctIndex: { type: Type.INTEGER },
-                  explanation: { type: Type.STRING },
-                },
-                required: ["question", "options", "correctIndex", "explanation"],
-              },
-            },
-          },
-          required: ["content", "key_takeaways", "quiz_questions"],
+Return ONLY a valid JSON object with exactly these fields:
+- "content": detailed markdown study guide (string)
+- "key_takeaways": key learning points in markdown (string)  
+- "quiz_questions": array of exactly 5 objects, each with: question (string), options (array of 4 strings), correctIndex (integer 0-3), explanation (string)`,
         },
-      },
-    } as any);
+        {
+          role: "user",
+          content: `Write a detailed study guide, key takeaways, and exactly 5 quiz questions for the topic "${topic}" in the course "${course}" for a ${level || "Undergraduate"} student.`,
+        },
+      ],
+    });
 
-    const responseText = response.text || "{}";
-    return res.json(parseJsonSafe(responseText));
+    const text = response.choices[0]?.message?.content || "{}";
+    return res.json(parseJsonSafe(text));
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to generate study content" });
   }
@@ -144,15 +102,21 @@ Return ONLY valid JSON with: content (detailed markdown study guide), key_takeaw
 
 router.post("/generate-image-prompt", async (req, res) => {
   const { title, department } = req.body;
-  const prompt = `Generate a short 1-sentence prompt for an AI image generator for a university course titled "${title}" in the ${department} department. Academic, modern, 3D illustration style. No text in image. Output ONLY the prompt string.`;
 
   try {
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: prompt,
+    const client = getClient();
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "user",
+          content: `Generate a short 1-sentence prompt for an AI image generator for a university course titled "${title}" in the ${department} department. Style: elegant, modern, academic 3D illustration. No text in image. Output ONLY the prompt sentence, nothing else.`,
+        },
+      ],
     });
-    return res.json({ content: response.text?.trim() || `educational illustration for ${title} ${department}` });
+
+    const content = response.choices[0]?.message?.content?.trim() || `educational illustration for ${title} ${department}`;
+    return res.json({ content });
   } catch (error: any) {
     return res.json({ content: `educational illustration for ${title} ${department}` });
   }
@@ -163,39 +127,24 @@ router.post("/generate-quiz", async (req, res) => {
   const num = numQuestions || 5;
 
   try {
-    const prompt = `You are a professor teaching ${courseTitle} (${courseCode}). Generate exactly ${num} multiple-choice exam questions about the topic: "${topicTitle}". Each question must have 4 options. Keep explanations concise (1-2 sentences).`;
-
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "Return ONLY a JSON object with a 'questions' array. No commentary.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            questions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctIndex: { type: Type.INTEGER },
-                  explanation: { type: Type.STRING },
-                },
-                required: ["question", "options", "correctIndex", "explanation"],
-              },
-            },
-          },
-          required: ["questions"],
+    const client = getClient();
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a university professor. Return ONLY a valid JSON object with a single field "questions" — an array of exactly ${num} multiple-choice questions. Each question must have: question (string), options (array of exactly 4 strings), correctIndex (integer 0-3), explanation (1-2 sentence string).`,
         },
-      },
-    } as any);
+        {
+          role: "user",
+          content: `Generate exactly ${num} challenging but fair exam questions about the topic "${topicTitle}" from the course ${courseTitle} (${courseCode}).`,
+        },
+      ],
+    });
 
-    const responseText = response.text || "{}";
-    const parsed = parseJsonSafe(responseText);
+    const text = response.choices[0]?.message?.content || "{}";
+    const parsed = parseJsonSafe(text);
     return res.json(parsed.questions || []);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to generate quiz" });
@@ -203,26 +152,31 @@ router.post("/generate-quiz", async (req, res) => {
 });
 
 router.post("/chat", async (req, res) => {
-  const { messages, systemInstruction, model } = req.body;
+  const { messages, systemInstruction } = req.body;
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
 
   try {
-    const ai = getGeminiClient();
-    const activeModel = "gemini-1.5-flash";
+    const client = getClient();
 
-    const responseStream = await ai.models.generateContentStream({
-      model: activeModel,
-      contents: messages || [],
-      config: {
-        systemInstruction: systemInstruction || "You are Kortex AI, a helpful educational assistant.",
+    const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: systemInstruction || "You are Kortex AI, a helpful and friendly educational assistant for university students. Be clear, concise, and educational.",
       },
-    } as any);
+      ...(messages || []),
+    ];
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+    const stream = await client.chat.completions.create({
+      model: MODEL,
+      messages: chatMessages,
+      stream: true,
+    });
 
-    for await (const chunk of responseStream) {
-      const text = (chunk as any).text || "";
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || "";
       if (text) {
         res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
@@ -234,7 +188,7 @@ router.post("/chat", async (req, res) => {
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message || "Chat failed" });
     }
-    res.write(`data: ${JSON.stringify({ text: "I'm having trouble connecting right now. Please try again." })}\n\n`);
+    res.write(`data: ${JSON.stringify({ text: "I'm having trouble connecting right now. Please try again in a moment." })}\n\n`);
     res.write("data: [DONE]\n\n");
     return res.end();
   }
