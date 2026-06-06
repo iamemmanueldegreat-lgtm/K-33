@@ -196,7 +196,7 @@ export default function Home() {
       </div>
 
       {/* Main Action Bento Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {/* My Courses Card */}
         <div onClick={() => navigate('/library')} className="bg-[#EEF4FF] dark:bg-blue-900/40 border border-blue-100 dark:border-blue-500/20 rounded-[24px] p-5 relative overflow-hidden cursor-pointer shadow-sm min-h-[160px] flex flex-col justify-between group hover:shadow-md transition-all">
           <div className="relative z-10">
@@ -261,8 +261,8 @@ export default function Home() {
 
       {/* Horizontal Scroll Section: Free Animated Lesson */}
       <section className="space-y-3">
-        <h3 className="font-bold text-sm px-1">Continue Learning</h3>
-        <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar px-1">
+        <h3 className="font-bold text-sm px-1 sm:text-base">Continue Learning</h3>
+        <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar px-1 md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-3">
            {loading ? (
              <>
                <div className="min-w-[200px] h-[180px] bg-surface rounded-[24px] animate-pulse snap-start"></div>
@@ -311,8 +311,8 @@ export default function Home() {
 
       {/* Section: Available Courses */}
       <section className="space-y-3 pb-8">
-        <h3 className="font-bold text-sm px-1">My Courses</h3>
-        <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar px-1">
+        <h3 className="font-bold text-sm px-1 sm:text-base">My Courses</h3>
+        <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar px-1 md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-3">
            {loading ? (
               <>
                <div className="min-w-[220px] h-[200px] bg-surface rounded-[24px] animate-pulse snap-start"></div>

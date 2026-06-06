@@ -408,12 +408,17 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
          <LoadingScreen />
       )}
 
-      {/* ACTIVE QUIZ VIEW STATE (FULL-SCREEN EXPERIENCE - Recreating Image 2 exactly) */}
+      {/* ACTIVE QUIZ VIEW STATE (FULL-SCREEN EXPERIENCE) */}
       {sessionState === 'QUIZ' && questions.length > 0 && (
-         <div className="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex flex-col justify-between w-screen h-screen overflow-hidden">
-           
-           {/* UPPER SECTION: White / Light Gray Workspace spanning top screen - Compacted to go up more */}
-           <div className="w-full flex-none flex flex-col bg-white dark:bg-zinc-950 pt-5 pb-3 px-5 sm:px-8 items-center border-b border-zinc-50 dark:border-zinc-900/40">
+         <div
+           className="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex flex-col"
+           style={{ height: '100dvh' }}
+         >
+           {/* UPPER SECTION: question display — auto height, never scrolls */}
+           <div
+             className="w-full flex-none flex flex-col bg-white dark:bg-zinc-950 pb-3 px-5 sm:px-8 items-center border-b border-zinc-50 dark:border-zinc-900/40"
+             style={{ paddingTop: 'max(20px, env(safe-area-inset-top))' }}
+           >
              <div className="w-full max-w-2xl flex flex-col">
                
                {/* Header Top Bar - Pushed to the absolute top */}
@@ -462,9 +467,10 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
              </div>
            </div>
 
-           {/* LOWER SECTION: Royal Purple/Indigo rounded drawer filling bottom screen. Covering more than half of the screen. */}
-           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 sm:px-12 sm:pt-6 flex flex-col w-full shadow-2xl z-20 flex-1 min-h-0" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
-             <div className="max-w-xl mx-auto w-full flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
+           {/* LOWER SECTION: dark teal rounded drawer — fills all remaining space */}
+           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 sm:px-12 sm:pt-6 flex flex-col w-full shadow-2xl z-20 flex-1 min-h-0">
+             {/* Scrollable content: options + explanation. Takes all available height. */}
+             <div className="max-w-xl mx-auto w-full flex-1 min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
                
                {/* Centered label */}
                <p className="text-center text-teal-200/80 text-xs font-black uppercase tracking-[0.25em] mb-4">
@@ -561,22 +567,17 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
 
 
               </div>
-              {/*
-                     </p>
-                   </motion.div>
-                 )}
-               </AnimatePresence>
 
-             </div>
-
-             */}
-              {/* Action Control row holding navigation button pinned to the right */}
-             <div className="max-w-xl mx-auto w-full flex items-center justify-end mt-auto pt-4 flex-none">
+             {/* Pinned action buttons — flex-none so they NEVER scroll away */}
+             <div
+               className="max-w-xl mx-auto w-full flex items-center justify-end flex-none pt-3"
+               style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}
+             >
                {selectedOption !== null && !confirmedAnswer && (
                  <button
                    onClick={handleSubmitAnswer}
                    type="button"
-                   className="bg-white hover:bg-zinc-50 text-[#14333c] font-black text-xs px-8 py-4 rounded-full shadow-lg transition-all active:scale-[0.97] cursor-pointer inline-flex items-center gap-2"
+                   className="bg-white hover:bg-zinc-50 text-[#14333c] font-black text-sm px-8 py-4 rounded-full shadow-lg transition-all active:scale-[0.97] cursor-pointer inline-flex items-center gap-2"
                  >
                    <span>Confirm Option</span>
                    <ArrowRight size={15} className="stroke-[3]" />
@@ -587,7 +588,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                  <button
                    onClick={handleNextQuestion}
                    type="button"
-                   className="bg-white hover:bg-zinc-50 text-[#14333c] font-black text-xs px-8 py-4 rounded-full shadow-lg transition-all active:scale-[0.97] cursor-pointer inline-flex items-center gap-2"
+                   className="bg-white hover:bg-zinc-50 text-[#14333c] font-black text-sm px-8 py-4 rounded-full shadow-lg transition-all active:scale-[0.97] cursor-pointer inline-flex items-center gap-2"
                  >
                    <span>{currentIdx < questions.length - 1 ? 'Next Question' : 'Finish'}</span>
                    <ArrowRight size={15} className="stroke-[3]" />
@@ -600,9 +601,12 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
          </div>
       )}
 
-      {/* QUIZ COMPLETED / RESULTS STATE (IMMERSIVE FULL VIEW - Recreating Image 1 Right Side) */}
+      {/* QUIZ COMPLETED / RESULTS STATE */}
       {sessionState === 'RESULTS' && (
-        <div className="fixed inset-0 z-[100] bg-[#14333c] w-screen h-screen flex flex-col justify-center items-center p-6 overflow-y-auto">
+        <div
+          className="fixed inset-0 z-[100] bg-[#14333c] flex flex-col justify-center items-center p-6 overflow-y-auto"
+          style={{ height: '100dvh' }}
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
