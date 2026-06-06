@@ -174,7 +174,9 @@ What part of this lesson would you like me to explain further? Just ask! 📚`
     setIsTyping(true);
 
     try {
-      const validHistory = historyBeforeResponse.filter(m => m.content);
+      const validHistory = historyBeforeResponse
+        .filter(m => m.content)
+        .map(m => ({ ...m, role: m.role === 'model' ? 'assistant' : m.role }));
 
       const res = await fetch("/api/chat", {
         method: "POST",

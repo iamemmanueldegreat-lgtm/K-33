@@ -195,12 +195,17 @@ Return ONLY a valid JSON object with exactly these fields:
     res.setHeader("Connection", "keep-alive");
 
     try {
+      const normalizedMessages = (messages || []).map(m => ({
+        ...m,
+        role: m.role === "model" ? "assistant" : m.role,
+      }));
+
       const chatMessages = [
         {
           role: "system",
           content: systemInstruction || "You are Kortex AI, a helpful and friendly educational assistant for university students. Be clear, concise, and educational.",
         },
-        ...(messages || []),
+        ...normalizedMessages,
       ];
 
       const resp = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {

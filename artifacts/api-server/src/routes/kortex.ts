@@ -190,12 +190,17 @@ router.post("/chat", async (req, res) => {
   try {
     const client = getClient();
 
+    const normalizedMessages = (messages || []).map((m: { role: string; content: string }) => ({
+      ...m,
+      role: m.role === "model" ? "assistant" : m.role,
+    }));
+
     const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: "system",
         content: systemInstruction || "You are Kortex AI, a helpful and friendly educational assistant for university students. Be clear, concise, and educational.",
       },
-      ...(messages || []),
+      ...normalizedMessages,
     ];
 
     const stream = await client.chat.completions.create({
