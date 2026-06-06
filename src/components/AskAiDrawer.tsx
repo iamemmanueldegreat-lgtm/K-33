@@ -30,6 +30,7 @@ export default function AskAiDrawer({
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
@@ -128,9 +129,37 @@ What part of this lesson would you like me to explain further? Just ask! 📚`
     }
   }, [messages, topicTitle, courseTitle, user, setMessages]);
 
-  // Scroll to bottom on updates (using instant 'auto' scrolling while generating to prevent glitchy shaking)
+  const scrollToBottom = (force = false) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (force) {
+      container.scrollTop = container.scrollHeight;
+    } else {
+      // Check if user is scrolled near the bottom (within 150px) to automatically scroll down
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+      if (isNearBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  };
+
+  // Scroll to bottom smoothly when messages list length expands
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: isTyping ? 'auto' : 'smooth' });
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages.length]);
+
+  // Maintain scroll alignment if near the bottom during continuous active model typing/streaming
+  useEffect(() => {
+    if (isTyping) {
+      scrollToBottom();
+    }
   }, [messages, isTyping]);
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -280,7 +309,10 @@ What part of this lesson would you like me to explain further? Just ask! 📚`
             </div>
 
             {/* Scrollable messages space */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 custom-scrollbar select-text bg-background">
+            <div 
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto px-6 py-6 space-y-6 custom-scrollbar select-text bg-background"
+            >
               {messages.map((m, idx) => {
                 const isUser = m.role === 'user';
                 if (isUser) {

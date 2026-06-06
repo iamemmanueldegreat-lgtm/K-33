@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import OpenAI from "openai";
 import { jsonrepair } from "jsonrepair";
+import { GoogleGenAI } from "@google/genai";
 
 const Type = {
   OBJECT: "object",
@@ -11,88 +12,200 @@ const Type = {
   INTEGER: "integer"
 };
 
-// Lazy-loaded DeepSeek Client for full-stack API safety
+// Lazy-loaded AI clients
 let openaiClient: OpenAI | null = null;
 let lastApiKey: string | null = null;
-function getGeminiClient(): any {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) {
-    throw new Error("DEEPSEEK_API_KEY environment variable is required.");
-  }
-  if (!openaiClient || key !== lastApiKey) {
-    lastApiKey = key;
-    openaiClient = new OpenAI({
-      apiKey: key,
-      baseURL: "https://api.deepseek.com/v1"
-    });
-  }
-  return {
-    models: {
-      generateContent: async (args: any) => {
-        let messages = [];
-        let systemInstruction = "";
-        
-        if (args.config && args.config.systemInstruction) {
-          systemInstruction = args.config.systemInstruction;
-        }
+let googleGenAIClient: GoogleGenAI | null = null;
+let lastGeminiKey: string | null = null;
 
-        // Auto-inject JSON Schema instructions if defined
-        if (args.config && args.config.responseSchema) {
-          const schemaStr = JSON.stringify(args.config.responseSchema);
-          systemInstruction += `\n\nCRITICAL JSON SCHEMA REQUIREMENT:
+function getGeminiClient(): any {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const deepseekKey = process.env.DEEPSEEK_API_KEY;
+
+  if (!geminiKey && !deepseekKey) {
+    throw new Error(
+      "No API Keys detected. Please set GEMINI_API_KEY or DEEPSEEK_API_KEY in your hosting environment."
+    );
+  }
+
+  // Preferred Path: OpenAI / DeepSeek client via DEEPSEEK_API_KEY
+  if (!openaiClient || deepseekKey !== lastApiKey) {
+    if (deepseekKey) {
+      lastApiKey = deepseekKey ?? null;
+      openaiClient = new OpenAI({
+        apiKey: deepseekKey,
+        baseURL: "https://api.deepseek.com/v1"
+      });
+    }
+  }
+
+  // If DeepSeek key exists, use it exclusively as preferred by user
+  if (deepseekKey && openaiClient) {
+    return {
+      models: {
+        generateContent: async (args: any) => {
+          let messages = [];
+          let systemInstruction = "";
+          
+          if (args.config && args.config.systemInstruction) {
+            systemInstruction = args.config.systemInstruction;
+          }
+
+          if (args.config && args.config.responseSchema) {
+            const schemaStr = JSON.stringify(args.config.responseSchema);
+            systemInstruction += `\n\nCRITICAL JSON SCHEMA REQUIREMENT:
 You MUST return a JSON object conforming strictly to the following JSON Schema structure:
 ${schemaStr}
 
 Ensure you output ONLY a valid stringified JSON object containing exactly the requested keys. Avoid wrapping JSON keys in custom types or lists unless explicitly requested. Do not output anything other than this JSON.`;
-        }
+          }
 
-        if (systemInstruction) {
-          messages.push({ role: "system", content: systemInstruction });
-        }
-        messages.push({ role: "user", content: args.contents });
-        
-        let response_format;
-        if (args.config && (args.config.responseMimeType === "application/json" || args.config.responseSchema)) {
-          response_format = { type: "json_object" };
-        }
+          if (systemInstruction) {
+            messages.push({ role: "system", content: systemInstruction });
+          }
 
-        const res = await openaiClient!.chat.completions.create({
-          model: "deepseek-chat",
-          messages,
-          response_format,
-        });
+          if (typeof args.contents === "string") {
+            messages.push({ role: "user", content: args.contents });
+          } else if (Array.isArray(args.contents)) {
+            for (const msg of args.contents) {
+              const role = msg.role === 'model' ? 'assistant' : 'user';
+              const content = msg.parts ? msg.parts[0].text : (msg.text || JSON.stringify(msg));
+              messages.push({ role, content });
+            }
+          } else {
+            messages.push({ role: "user", content: JSON.stringify(args.contents) });
+          }
+          
+          let response_format;
+          if (args.config && (args.config.responseMimeType === "application/json" || args.config.responseSchema)) {
+            response_format = { type: "json_object" };
+          }
 
-        return {
-          text: res.choices[0].message.content
-        };
-      },
-      generateContentStream: async (args: any) => {
-        let messages = [];
-        if (args.config && args.config.systemInstruction) {
-          messages.push({ role: "system", content: args.config.systemInstruction });
-        }
-        for (const msg of args.contents) {
-          const role = msg.role === 'model' ? 'assistant' : 'user';
-          const content = msg.parts ? msg.parts[0].text : msg.text;
-          messages.push({ role, content });
-        }
-        
-        const stream = await openaiClient!.chat.completions.create({
-          model: "deepseek-chat",
-          messages,
-          stream: true
-        });
+          const res = await openaiClient!.chat.completions.create({
+            model: "deepseek-chat",
+            messages,
+            response_format,
+          });
 
-        async function* streamGenerator() {
-          for await (const chunk of stream) {
-            const text = chunk.choices[0]?.delta?.content || "";
-            yield { text };
+          return {
+            text: res.choices[0].message.content
+          };
+        },
+        generateContentStream: async (args: any) => {
+          let messages = [];
+          if (args.config && args.config.systemInstruction) {
+            messages.push({ role: "system", content: args.config.systemInstruction });
+          }
+
+          if (typeof args.contents === "string") {
+            messages.push({ role: "user", content: args.contents });
+          } else {
+            for (const msg of args.contents) {
+              const role = msg.role === 'model' ? 'assistant' : 'user';
+              const content = msg.parts ? msg.parts[0].text : (msg.text || JSON.stringify(msg));
+              messages.push({ role, content });
+            }
+          }
+          
+          const stream = await openaiClient!.chat.completions.create({
+            model: "deepseek-chat",
+            messages,
+            stream: true
+          });
+
+          async function* streamGenerator() {
+            for await (const chunk of stream) {
+              const text = chunk.choices[0]?.delta?.content || "";
+              yield { text };
+            }
+          }
+          return streamGenerator();
+        }
+      }
+    };
+  }
+
+  // Fallback Path: Official Gemini SDK via GEMINI_API_KEY
+  if (geminiKey) {
+    if (!googleGenAIClient || geminiKey !== lastGeminiKey) {
+      lastGeminiKey = geminiKey;
+      googleGenAIClient = new GoogleGenAI({
+        apiKey: geminiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
           }
         }
-        return streamGenerator();
-      }
+      });
     }
-  };
+
+    return {
+      models: {
+        generateContent: async (args: any) => {
+          let model = args.model || "gemini-3.5-flash";
+          if (model === "deepseek-chat" || model.includes("deepseek") || model.includes("gemini-1.5")) {
+            model = "gemini-3.5-flash";
+          }
+
+          const config: any = {};
+          if (args.config) {
+            if (args.config.systemInstruction) {
+              config.systemInstruction = args.config.systemInstruction;
+            }
+            if (args.config.responseMimeType) {
+              config.responseMimeType = args.config.responseMimeType;
+            }
+            if (args.config.responseSchema) {
+              config.responseSchema = args.config.responseSchema;
+            }
+          }
+
+          const response = await googleGenAIClient!.models.generateContent({
+            model,
+            contents: args.contents,
+            config,
+          });
+
+          return {
+            text: response.text
+          };
+        },
+        generateContentStream: async (args: any) => {
+          let model = args.model || "gemini-3.5-flash";
+          if (model === "deepseek-chat" || model.includes("deepseek") || model.includes("gemini-1.5")) {
+            model = "gemini-3.5-flash";
+          }
+
+          const config: any = {};
+          if (args.config) {
+            if (args.config.systemInstruction) {
+              config.systemInstruction = args.config.systemInstruction;
+            }
+            if (args.config.responseMimeType) {
+              config.responseMimeType = args.config.responseMimeType;
+            }
+            if (args.config.responseSchema) {
+              config.responseSchema = args.config.responseSchema;
+            }
+          }
+
+          const responseStream = await googleGenAIClient!.models.generateContentStream({
+            model,
+            contents: args.contents,
+            config,
+          });
+
+          async function* googleStreamGenerator() {
+            for await (const chunk of responseStream) {
+              const text = chunk.text || "";
+              yield { text };
+            }
+          }
+          return googleStreamGenerator();
+        }
+      }
+    };
+  }
 }
 
 function parseJsonSafe(text: string): any {
@@ -404,34 +517,33 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
   return list.slice(0, num);
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+export const app = express();
+const PORT = 3000;
 
-  // Middleware to log requests
-  app.use((req, res, next) => {
-    console.log(`[Express] Received ${req.method} ${req.url}`);
-    next();
-  });
+// Middleware to log requests
+app.use((req, res, next) => {
+  console.log(`[Express] Received ${req.method} ${req.url}`);
+  next();
+});
 
-  // Middleware to parse JSON bodies
-  app.use(express.json({ limit: "50mb" }));
-  
-  // Custom error handler for JSON parsing issues
-  app.use((err: any, req: any, res: any, next: any) => {
-    if (err instanceof SyntaxError && 'body' in err) {
-      console.error("Express JSON Syntax Error:", err);
-      return res.status(400).json({ error: "Invalid JSON payload sent to server" });
-    }
-    if (err.type === 'entity.too.large') {
-      console.error("Express Payload Too Large:", err);
-      return res.status(413).json({ error: "Payload too large" });
-    }
-    next(err);
-  });
+// Middleware to parse JSON bodies
+app.use(express.json({ limit: "50mb" }));
 
-  // API Diagnostics Route using Gemini
-  app.get("/api/diagnostics", async (req, res) => {
+// Custom error handler for JSON parsing issues
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err instanceof SyntaxError && 'body' in err) {
+    console.error("Express JSON Syntax Error:", err);
+    return res.status(400).json({ error: "Invalid JSON payload sent to server" });
+  }
+  if (err.type === 'entity.too.large') {
+    console.error("Express Payload Too Large:", err);
+    return res.status(413).json({ error: "Payload too large" });
+  }
+  next(err);
+});
+
+// API Diagnostics Route using Gemini
+app.get("/api/diagnostics", async (req, res) => {
     const results: any = {
       timestamp: new Date().toISOString(),
       keys: {},
@@ -444,25 +556,27 @@ async function startServer() {
       return `${key.slice(0, 4)}...${key.slice(-4)} (length: ${key.length})`;
     };
 
-    const gemKey = process.env.DEEPSEEK_API_KEY;
+    const gemKey = process.env.GEMINI_API_KEY;
+    const deepKey = process.env.DEEPSEEK_API_KEY;
     results.keys.gemini = { status: gemKey ? "PRESENT" : "MISSING", mask: maskKey(gemKey) };
+    results.keys.deepseek = { status: deepKey ? "PRESENT" : "MISSING", mask: maskKey(deepKey) };
 
     try {
-      if (!gemKey) {
-        results.geminiTests["deepseek-chat"] = { success: false, error: "DEEPSEEK_API_KEY not set" };
+      if (!gemKey && !deepKey) {
+        results.geminiTests["active-ai"] = { success: false, error: "Neither GEMINI_API_KEY nor DEEPSEEK_API_KEY is configured." };
       } else {
         const ai = getGeminiClient();
         const testRes = await ai.models.generateContent({
-          model: "deepseek-chat",
+          model: "gemini-3.5-flash",
           contents: "Hello, respond with exactly 'OK_TEST'",
         });
-        results.geminiTests["deepseek-chat"] = {
+        results.geminiTests["active-ai"] = {
           success: true,
           response: testRes.text?.trim()
         };
       }
     } catch (err: any) {
-      results.geminiTests["deepseek-chat"] = {
+      results.geminiTests["active-ai"] = {
         success: false,
         error: err.message || err.toString()
       };
@@ -1002,41 +1116,21 @@ The student is asking a direct follow-up question via an overlays drawer directl
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    createViteServer({
       server: { middlewareMode: true, allowedHosts: true as any },
       appType: "spa",
+    }).then(vite => {
+      app.use(vite.middlewares);
+      boot();
     });
-    app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
-  }
-
-  async function runStartupDiagnostics() {
-    console.log("\n=================== STARTUP DIAGNOSTICS ===================");
-    const gemKey = process.env.DEEPSEEK_API_KEY;
-    console.log(`[DIAG] DEEPSEEK_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
-
-    if (gemKey) {
-      try {
-        console.log(`[DIAG] Testing API with deepseek-chat...`);
-        const ai = getGeminiClient();
-        const testRes = await ai.models.generateContent({
-          model: "deepseek-chat",
-          contents: "Say 'DeepSeek OK'",
-        });
-        console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
-      } catch (e: any) {
-        console.error(`[DIAG] DeepSeek connection failure: ${e.message || e}`);
-      }
-    } else {
-      console.log("[DIAG] Warning: DEEPSEEK_API_KEY is not defined. AI interactions will fail.");
-    }
-    console.log("===================================================================\n");
+    boot();
   }
 
   app.use((err: any, req: any, res: any, next: any) => {
@@ -1046,12 +1140,10 @@ The student is asking a direct follow-up question via an overlays drawer directl
     }
   });
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    runStartupDiagnostics().catch(err => {
-      console.error("[DIAG] Diagnostics error occurred:", err);
+  function boot() {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
-  });
-}
+  }
 
-startServer();
+export default app;
