@@ -25,7 +25,7 @@ import Billing from './pages/Billing';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Admin from './pages/Admin';
-
+import NotFound from './pages/not-found';
 
 export default function App() {
   useEffect(() => {
@@ -281,6 +281,7 @@ export default function App() {
                 <Route path="/billing" element={<Billing />} />
               </Route>
               <Route path="/study/:courseId/:topicId" element={user ? <Study /> : <Navigate to="/auth" />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
           <Toaster position="top-center" />

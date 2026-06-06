@@ -151,6 +151,35 @@ router.post("/generate-quiz", async (req, res) => {
   }
 });
 
+router.post("/quiz-explain", async (req, res) => {
+  const { question, options, correctIndex, chosenIndex, userQuery } = req.body;
+
+  try {
+    const client = getClient();
+    const correctAnswer = options?.[correctIndex] ?? "Unknown";
+    const chosenAnswer = chosenIndex !== undefined ? (options?.[chosenIndex] ?? "Not answered") : "Not answered";
+
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "You are Kortex AI, a helpful university tutor. Answer the student's question about the quiz question clearly and concisely in 2-4 sentences. Be educational and encouraging.",
+        },
+        {
+          role: "user",
+          content: `Quiz question: "${question}"\nOptions: ${options?.join(", ")}\nCorrect answer: "${correctAnswer}"\nStudent chose: "${chosenAnswer}"\n\nStudent's question: "${userQuery}"`,
+        },
+      ],
+    });
+
+    const explanation = response.choices[0]?.message?.content?.trim() || "I couldn't generate an explanation. Please try again.";
+    return res.json({ explanation });
+  } catch (error: any) {
+    return res.status(500).json({ explanation: "Failed to get an explanation. Please try again." });
+  }
+});
+
 router.post("/chat", async (req, res) => {
   const { messages, systemInstruction } = req.body;
 

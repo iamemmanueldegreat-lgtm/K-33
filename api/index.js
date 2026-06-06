@@ -166,6 +166,27 @@ Return ONLY a valid JSON object with exactly these fields:
     }
   }
 
+  if (route === "/quiz-explain") {
+    const { question, options, correctIndex, chosenIndex, userQuery } = body;
+    try {
+      const correctAnswer = options?.[correctIndex] ?? "Unknown";
+      const chosenAnswer = chosenIndex !== undefined ? (options?.[chosenIndex] ?? "Not answered") : "Not answered";
+      const text = await deepseekChat(apiKey, [
+        {
+          role: "system",
+          content: "You are Kortex AI, a helpful university tutor. Answer the student's question about the quiz question clearly and concisely in 2-4 sentences. Be educational and encouraging.",
+        },
+        {
+          role: "user",
+          content: `Quiz question: "${question}"\nOptions: ${options?.join(", ")}\nCorrect answer: "${correctAnswer}"\nStudent chose: "${chosenAnswer}"\n\nStudent's question: "${userQuery}"`,
+        },
+      ], false);
+      return res.status(200).json({ explanation: text.trim() || "I couldn't generate an explanation. Please try again." });
+    } catch {
+      return res.status(500).json({ explanation: "Failed to get an explanation. Please try again." });
+    }
+  }
+
   if (route === "/chat") {
     const { messages, systemInstruction } = body;
 
