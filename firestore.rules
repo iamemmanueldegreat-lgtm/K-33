@@ -110,7 +110,7 @@ service cloud.firestore {
       allow read: if true;
     }
     match /{document=**} {
-      allow read: if true;
+      allow read, write: if true;
     }
     match /{path=**}/curriculum/{docId} {
       allow read: if true;
@@ -140,3 +140,4 @@ service cloud.firestore {
     }
   }
 }
+
