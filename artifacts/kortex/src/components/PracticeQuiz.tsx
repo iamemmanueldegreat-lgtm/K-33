@@ -463,7 +463,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
            </div>
 
            {/* LOWER SECTION: Royal Purple/Indigo rounded drawer filling bottom screen. Covering more than half of the screen. */}
-           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 pb-5 sm:px-12 sm:pt-6 sm:pb-6 flex flex-col justify-between w-full shadow-2xl z-20 flex-1 min-h-0 overflow-hidden">
+           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 sm:px-12 sm:pt-6 flex flex-col w-full shadow-2xl z-20 flex-1 min-h-0" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
              <div className="max-w-xl mx-auto w-full flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
                
                {/* Centered label */}
@@ -571,7 +571,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
 
              */}
               {/* Action Control row holding navigation button pinned to the right */}
-             <div className="max-w-xl mx-auto w-full flex items-center justify-end mt-3 flex-none">
+             <div className="max-w-xl mx-auto w-full flex items-center justify-end mt-auto pt-4 flex-none">
                {selectedOption !== null && !confirmedAnswer && (
                  <button
                    onClick={handleSubmitAnswer}
