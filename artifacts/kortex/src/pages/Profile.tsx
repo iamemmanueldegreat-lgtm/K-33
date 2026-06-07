@@ -122,22 +122,31 @@ export default function Profile() {
         <div className="relative group">
           <button
             onClick={() => avatarInputRef.current?.click()}
-            className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-white dark:ring-surface shadow-lg flex items-center justify-center bg-primary text-white text-3xl font-bold"
+            className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-white dark:ring-surface shadow-lg flex items-center justify-center bg-primary text-white text-3xl font-bold relative"
           >
             {user?.avatar_url ? (
               <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
             ) : (
               user?.full_name?.charAt(0).toUpperCase() || 'U'
             )}
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-              {uploadingAvatar
-                ? <Loader2 size={22} className="animate-spin text-white" />
-                : <Camera size={20} className="text-white" />}
-            </div>
+            {uploadingAvatar && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
+                <Loader2 size={24} className="animate-spin text-white" />
+              </div>
+            )}
+          </button>
+
+          {/* Always-visible camera badge so users know they can tap to upload */}
+          <button
+            onClick={() => avatarInputRef.current?.click()}
+            className="absolute bottom-0 right-0 w-8 h-8 bg-[#14333c] text-white rounded-full border-2 border-white dark:border-surface flex items-center justify-center shadow-md active:scale-90 transition-transform"
+            title="Change photo"
+          >
+            <Camera size={14} />
           </button>
 
           {user?.is_pro && (
-            <div className="absolute -bottom-1 -right-1 bg-accent text-white p-1.5 rounded-full border-2 border-white dark:border-surface shadow">
+            <div className="absolute -top-1 -right-1 bg-accent text-white p-1.5 rounded-full border-2 border-white dark:border-surface shadow">
               <Shield size={12} fill="currentColor" />
             </div>
           )}
@@ -256,18 +265,54 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Install App Banner — shown only when not yet installed */}
+        {!isInstalled && (
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={async () => {
+              if (installable) {
+                const ok = await triggerInstall();
+                if (ok) toast.success('Kortex AI installed successfully!');
+              } else {
+                setShowInstructions(true);
+              }
+            }}
+            className="w-full flex items-center gap-4 rounded-2xl p-4 shadow-md text-left bg-[#09090C] border border-white/10"
+          >
+            <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+              <Download size={20} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black text-white">Install Kortex AI</p>
+              <p className="text-[11px] text-white/60 mt-0.5 leading-snug">
+                Add to your home screen for a full app experience
+              </p>
+            </div>
+            <div className="shrink-0 bg-white/15 rounded-full px-3 py-1.5">
+              <span className="text-[10px] font-black text-white uppercase tracking-wider">Install</span>
+            </div>
+          </motion.button>
+        )}
+
+        {isInstalled && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl border border-emerald-200/50 dark:border-emerald-500/20">
+            <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">App installed on this device</p>
+          </div>
+        )}
+
         {/* Settings Section */}
         <div>
           <p className="text-[11px] font-bold uppercase tracking-widest text-muted px-1 mb-2">
             Settings
           </p>
           <div className="bg-white dark:bg-surface rounded-2xl border border-border overflow-hidden shadow-sm">
-            {settingsItems.map((item, i) => (
+            {settingsItems.filter(item => item.label !== 'Install App' && item.label !== 'App Installed').map((item, i, arr) => (
               <button
                 key={i}
                 onClick={item.onClick}
                 className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-neutral-50 dark:hover:bg-white/5 active:bg-neutral-100 dark:active:bg-white/10 transition-colors ${
-                  i < settingsItems.length - 1 ? 'border-b border-border' : ''
+                  i < arr.length - 1 ? 'border-b border-border' : ''
                 }`}
               >
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.color}`}>

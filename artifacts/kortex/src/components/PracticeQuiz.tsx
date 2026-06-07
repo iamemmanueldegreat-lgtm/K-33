@@ -537,33 +537,50 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                  })}
                </div>
 
-               {/* Post-answer Rationales block styled cleanly with high transparency */}
+               {/* Post-answer feedback block */}
                <AnimatePresence>
                  {confirmedAnswer && (
                    <motion.div
                      initial={{ opacity: 0, y: 10 }}
                      animate={{ opacity: 1, y: 0 }}
                      exit={{ opacity: 0, y: 10 }}
-                     className="bg-white/10 text-white rounded-[24px] p-4 text-xs leading-relaxed mb-4 border border-white/10 shadow-inner cursor-pointer hover:bg-white/15 transition-all select-none"
-                      onClick={() => setExplanationExpanded(!explanationExpanded)}
+                     className="rounded-[20px] mb-4 overflow-hidden border border-white/10 shadow-inner"
                    >
-                     <div className="flex items-center justify-between gap-1.5 mb-1.5 text-yellow-300">
-                       <div className="flex items-center gap-1.5">
-                          <HelpCircle size={14} />
-                       <span className="text-[10px] font-black uppercase tracking-wider">{selectedOption === questions[currentIdx].correctIndex ? 'Explanation' : 'Correction'}</span>
-                        </div>
-                        <span className="text-[9px] font-semibold uppercase bg-yellow-400/25 text-yellow-200 px-2 py-0.5 rounded-full tracking-wider shrink-0 transition-all select-none">
-                          {explanationExpanded ? 'Tap to collapse' : 'Tap to expand'}
-                        </span>
-                     </div>
-                     <div className={`transition-all duration-300 overflow-hidden ${explanationExpanded ? 'max-h-40 overflow-y-auto pr-1' : 'max-h-6 line-clamp-1 opacity-80'}`}>
-                        <p className="opacity-95 text-xs font-semibold leading-relaxed">
-                       {questions[currentIdx].explanation}
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                     {/* Verdict header */}
+                     {(() => {
+                       const isCorrect = selectedOption === questions[currentIdx].correctIndex;
+                       const correctLetter = String.fromCharCode(65 + questions[currentIdx].correctIndex);
+                       return (
+                         <>
+                           <div className={`flex items-center gap-2 px-4 py-2.5 ${isCorrect ? 'bg-[#10b981]/25' : 'bg-[#ef4444]/25'}`}>
+                             {isCorrect
+                               ? <CheckCircle2 size={15} className="text-emerald-300 shrink-0" />
+                               : <XCircle size={15} className="text-red-300 shrink-0" />}
+                             <span className={`text-xs font-black ${isCorrect ? 'text-emerald-300' : 'text-red-300'}`}>
+                               {isCorrect
+                                 ? `Correct! Option ${correctLetter} is right.`
+                                 : `Wrong! Option ${correctLetter} is the correct answer.`}
+                             </span>
+                           </div>
+                           <div
+                             className="bg-white/8 px-4 py-3 cursor-pointer hover:bg-white/12 transition-all select-none"
+                             onClick={() => setExplanationExpanded(!explanationExpanded)}
+                           >
+                             <div className={`transition-all duration-300 overflow-hidden ${explanationExpanded ? 'max-h-28 overflow-y-auto' : 'max-h-5 line-clamp-1'}`}>
+                               <p className="text-[11px] text-white/80 font-medium leading-relaxed">
+                                 {questions[currentIdx].explanation}
+                               </p>
+                             </div>
+                             <span className="text-[9px] font-bold uppercase tracking-wider text-white/40 mt-1 block">
+                               {explanationExpanded ? 'Tap to collapse' : 'Tap to read more'}
+                             </span>
+                           </div>
+                         </>
+                       );
+                     })()}
+                   </motion.div>
+                 )}
+               </AnimatePresence>
 
 
               </div>
