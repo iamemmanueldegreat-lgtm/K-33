@@ -6,7 +6,6 @@ import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import LoadingScreen from './LoadingScreen';
-import { generateQuiz as generateQuizAI, explainQuizQuestion } from '../lib/gemini';
 
 type SessionState = 'SETUP' | 'GENERATING' | 'QUIZ' | 'RESULTS';
 
@@ -60,14 +59,21 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
     setAskResponse('');
 
     try {
-      const explanation = await explainQuizQuestion(
-        questions[currentIdx].question,
-        questions[currentIdx].options,
-        questions[currentIdx].correctIndex,
-        selectedOption ?? undefined,
-        askQuery,
-      );
-      setAskResponse(explanation);
+      const response = await fetch('/api/quiz-explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: questions[currentIdx].question,
+          options: questions[currentIdx].options,
+          correctIndex: questions[currentIdx].correctIndex,
+          chosenIndex: selectedOption,
+          userQuery: askQuery,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Could not get response from AI');
+      const data = await response.json();
+      setAskResponse(data.explanation || 'No response formulated.');
     } catch (err: any) {
       console.error(err);
       setAskResponse('Failed to fetch an answer from Kortex AI. Please check your connection and try again.');
@@ -141,7 +147,13 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
 
     // Otherwise, generate 10 dynamic LLM active recall questions online
     try {
-      const generatedQuestions = await generateQuizAI(courseTitle, courseCode, topicTitle, targetLength);
+      const res = await fetch("/api/generate-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseTitle, courseCode, topicTitle, numQuestions: targetLength }),
+      });
+      if (!res.ok) throw new Error("Failed to compile quiz database");
+      const generatedQuestions = await res.json();
 
       if (Array.isArray(generatedQuestions) && generatedQuestions.length > 0) {
         const valid = generatedQuestions.map((q) => ({
