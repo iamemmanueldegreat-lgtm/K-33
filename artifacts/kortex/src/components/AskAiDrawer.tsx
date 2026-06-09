@@ -4,6 +4,7 @@ import { X, Send, Sparkles, Brain, ArrowUp, Mic, Plus, Calendar, BookOpen } from
 import Markdown from 'react-markdown';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { streamChat } from '../lib/gemini';
 
 interface AskAiDrawerProps {
   isOpen: boolean;
@@ -173,77 +174,37 @@ What part of this lesson would you like me to explain further? Just ask! 📚`
     setInput('');
     setIsTyping(true);
 
+    const systemInstruction = [
+      `You are Kortex AI, an expert university tutor helping a student study "${topicTitle}" from the course "${courseTitle}".`,
+      user?.department ? `The student is studying ${user.department}` : '',
+      user?.level ? `at ${user.level} level` : '',
+      user?.school ? `at ${user.school}.` : '.',
+      studyContext ? `\n\nRelevant study context:\n${studyContext.slice(0, 1200)}` : '',
+      '\n\nBe helpful, educational, and concise. Use markdown formatting when it aids clarity.',
+    ].filter(Boolean).join(' ');
+
     try {
-      const validHistory = historyBeforeResponse
-        .filter(m => m.content)
-        .map(m => ({ ...m, role: m.role === 'model' ? 'assistant' : m.role }));
+      const validHistory = historyBeforeResponse.filter(m => m.content);
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: 'flash',
-          messages: validHistory,
-          topicTitle,
-          studyContext,
-          student: {
-            department: user?.department || '',
-            level: user?.level || '',
-            school: user?.school || '',
-            fullName: user?.full_name || ''
-          },
-          isAskAiDrawer: true
-        })
-      });
-
-      if (!res.ok) throw new Error("Failed to communicate with tutor API");
-      if (!res.body) throw new Error("No response body");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-
-      let accumulatedText = "";
+      let accumulatedText = '';
       setMessages(prev => [...prev, { role: 'model', content: '' }]);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6);
-            if (dataStr === '[DONE]') continue;
-            
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.text) {
-                accumulatedText += data.text;
-                setMessages(prev => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    role: 'model',
-                    content: accumulatedText
-                  };
-                  return updated;
-                });
-              }
-            } catch (e) {
-              console.error("Error parsing stream chunk", e);
-            }
-          }
-        }
+      for await (const text of streamChat(validHistory, systemInstruction)) {
+        accumulatedText += text;
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'model', content: accumulatedText };
+          return updated;
+        });
       }
     } catch (err) {
-      console.error("Ask AI Drawer Chat Error:", err);
+      console.error('Ask AI Drawer Chat Error:', err);
       setMessages(prev => [
         ...prev,
         {
           role: 'model',
-          content: "I'm sorry, I encountered an issue speaking with my cloud brain right now. Please check your internet or try again."
-        }
+          content: "I'm sorry, I encountered an issue. Please check your connection and try again.",
+        },
       ]);
     } finally {
       setIsTyping(false);

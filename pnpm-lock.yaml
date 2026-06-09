@@ -226,6 +226,10 @@ importers:
         version: 3.1.0
 
   artifacts/kortex:
+    dependencies:
+      '@google/genai':
+        specifier: ^2.8.0
+        version: 2.8.0
     devDependencies:
       '@replit/vite-plugin-cartographer':
         specifier: 'catalog:'

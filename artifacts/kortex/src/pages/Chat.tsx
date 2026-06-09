@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { streamChat } from '../lib/gemini';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -344,69 +345,32 @@ export default function Chat() {
     // Save user message initially
     const activeSessionId = await saveMessageToSession(messages, userMessage, currentSessionId);
 
+    const systemInstruction = [
+      'You are Kortex AI, a helpful and friendly AI tutor for university students.',
+      user?.full_name ? `The student's name is ${user.full_name}.` : '',
+      user?.department ? `They study ${user.department}` : '',
+      user?.level ? `at ${user.level} level` : '',
+      user?.school ? `at ${user.school}.` : '.',
+      'Be clear, concise, and educational. Use markdown formatting when it helps. Encourage the student.',
+    ].filter(Boolean).join(' ');
+
     try {
       const validHistory = historyBeforeResponse.filter(m => m.parts && m.parts[0].text);
+      const geminiMessages = validHistory.map(m => ({ role: m.role, content: m.parts[0].text }));
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: 'flash',
-          messages: validHistory.map(m => ({
-            role: m.role === 'user' ? 'user' : 'assistant',
-            content: m.parts[0].text
-          })),
-          student: {
-            department: user?.department || '',
-            level: user?.level || '',
-            school: user?.school || '',
-            fullName: user?.full_name || ''
-          }
-        })
-      });
-
-      if (!res.ok) throw new Error("Failed to communicate with chat API");
-      if (!res.body) throw new Error("No response body");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-
-      let accumulatedText = "";
+      let accumulatedText = '';
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }] }]);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6);
-            if (dataStr === '[DONE]') continue;
-            
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.text) {
-                accumulatedText += data.text;
-                setMessages(prev => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    role: 'model',
-                    parts: [{ text: accumulatedText }]
-                  };
-                  return updated;
-                });
-              }
-            } catch (e) {
-              console.error("Error parsing stream chunk", e);
-            }
-          }
-        }
+      for await (const text of streamChat(geminiMessages, systemInstruction)) {
+        accumulatedText += text;
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'model', parts: [{ text: accumulatedText }] };
+          return updated;
+        });
       }
-      
-      // Save model message after it's done stream
+
+      // Save model message after stream is complete
       const modelMessage: Message = { role: 'model', parts: [{ text: accumulatedText }] };
       await saveMessageToSession(historyBeforeResponse, modelMessage, activeSessionId);
 
