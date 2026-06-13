@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, FacebookAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -81,6 +81,50 @@ export default function Auth() {
       }
     } catch (error: any) {
       toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSocialSignIn = async (providerName: 'google' | 'facebook') => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const provider = providerName === 'google' ? new GoogleAuthProvider() : new FacebookAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userSnap = await getDoc(userDocRef);
+      if (!userSnap.exists()) {
+        await setDoc(userDocRef, {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          full_name: firebaseUser.displayName || '',
+          avatar_url: firebaseUser.photoURL || '',
+          phone_number: '',
+          state: 'Edo',
+          school: 'Auchi Polytechnic',
+          department: 'Computer Science',
+          level: 'ND1',
+          is_pro: false,
+        });
+        toast.success('Account created! You can update your academic details in your profile.');
+      } else {
+        toast.success('Welcome back!');
+      }
+      await refreshProfile();
+    } catch (error: any) {
+      const code = error?.code || '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        // User dismissed — no error needed
+      } else if (code === 'auth/account-exists-with-different-credential') {
+        toast.error('An account already exists with this email. Try logging in with email/password.');
+      } else if (code === 'auth/popup-blocked') {
+        toast.error('Popup was blocked. Please allow popups for this site and try again.');
+      } else {
+        toast.error(`${providerName === 'google' ? 'Google' : 'Facebook'} sign-in failed. Please try again.`);
+      }
     } finally {
       setLoading(false);
     }
@@ -281,11 +325,21 @@ export default function Auth() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pb-2">
-                  <button type="button" className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-border bg-surface hover:bg-border/30 transition-colors shadow-sm">
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleSocialSignIn('google')}
+                    className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-border bg-surface hover:bg-border/30 active:scale-[0.97] transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
                     <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
                     <span className="text-[14px] font-semibold text-text">Google</span>
                   </button>
-                  <button type="button" className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-border bg-surface hover:bg-border/30 transition-colors shadow-sm">
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleSocialSignIn('facebook')}
+                    className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-border bg-surface hover:bg-border/30 active:scale-[0.97] transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
                     <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" alt="Facebook" className="w-5 h-5" />
                     <span className="text-[14px] font-semibold text-text">Facebook</span>
                   </button>
