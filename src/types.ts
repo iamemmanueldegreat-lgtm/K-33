@@ -27,6 +27,7 @@ export interface UserProfile {
   streak?: number;
   last_login_date?: string;
   active_days?: string[];
+  ai_credits_used?: Record<string, number>;
   study_hours_by_date?: Record<string, number>;
   academic_stats_by_date?: Record<string, {
     answered: number;

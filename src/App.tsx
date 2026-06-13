@@ -133,9 +133,16 @@ export default function App() {
           requiresUpdate = true;
         }
 
+        const updatedCredits = { ...(profile.ai_credits_used || {}) };
+        if (updatedCredits[todayStr] === undefined) {
+          updatedCredits[todayStr] = 0;
+          requiresUpdate = true;
+        }
+
         profile.active_days = updatedActiveDays;
         profile.study_hours_by_date = updatedStudyHours;
         profile.academic_stats_by_date = updatedAcademicStats;
+        profile.ai_credits_used = updatedCredits;
 
         setUser(profile);
         setDataLoaded(true);
@@ -147,7 +154,8 @@ export default function App() {
               last_login_date: todayStr,
               active_days: updatedActiveDays,
               study_hours_by_date: updatedStudyHours,
-              academic_stats_by_date: updatedAcademicStats
+              academic_stats_by_date: updatedAcademicStats,
+              ai_credits_used: updatedCredits
             });
           } catch (e) {
             console.error("Failed to update streak and analytics profile data:", e);

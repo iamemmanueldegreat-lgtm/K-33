@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2, WifiOff, CloudDownload, DownloadCloud, Sparkles, Check, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { generateStudyContent } from '../lib/gemini';
+import { canAffordCredits, getCreditsRemaining, getDailyLimit, spendCredits, AI_CREDIT_COSTS } from '../lib/credits';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'react-hot-toast';
@@ -202,6 +203,19 @@ export default function Study() {
               const userLevel = user?.level || "Undergraduate";
               const userDept = user?.department || "";
               const userSchool = user?.school || "";
+
+              if (!canAffordCredits(user, AI_CREDIT_COSTS.STUDY_GENERATION)) {
+                if (stepInterval) clearInterval(stepInterval);
+                toast.error(
+                  `No AI credits left today — ${getCreditsRemaining(user)} of ${getDailyLimit(user)} remaining. Resets at midnight or upgrade to Pro for 200 credits/day.`,
+                  { duration: 5000 }
+                );
+                setLoading(false);
+                setGenerationStep('');
+                return;
+              }
+              if (user?.id) spendCredits(user.id, user, AI_CREDIT_COSTS.STUDY_GENERATION).catch(console.error);
+
               const studyPackage = await generateStudyContent(topicTitle, courseTitle, userLevel, userDept, userSchool);
               if (stepInterval) clearInterval(stepInterval);
               if (!active) return;

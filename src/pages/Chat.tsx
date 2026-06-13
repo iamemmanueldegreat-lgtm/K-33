@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { canAffordCredits, getCreditsRemaining, getDailyLimit, spendCredits, AI_CREDIT_COSTS } from '../lib/credits';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { 
   Send, 
@@ -349,6 +351,15 @@ export default function Chat() {
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isTyping) return;
+
+    if (!canAffordCredits(user, AI_CREDIT_COSTS.CHAT_MESSAGE)) {
+      toast.error(
+        `No AI credits left today — ${getCreditsRemaining(user)} of ${getDailyLimit(user)} remaining. Resets at midnight or upgrade to Pro.`,
+        { duration: 4000 }
+      );
+      return;
+    }
+    if (user?.id) spendCredits(user.id, user, AI_CREDIT_COSTS.CHAT_MESSAGE).catch(console.error);
 
     const userMessage: Message = { role: 'user', parts: [{ text: input.trim() }] };
     const historyBeforeResponse = [...messages, userMessage];

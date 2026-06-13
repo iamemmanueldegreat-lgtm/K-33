@@ -4,6 +4,8 @@ import { X, Send, Sparkles, Brain, ArrowUp, Plus, Mic, Activity } from 'lucide-r
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
+import { canAffordCredits, getCreditsRemaining, getDailyLimit, spendCredits, AI_CREDIT_COSTS } from '../lib/credits';
 
 interface AskAiDrawerProps {
   isOpen: boolean;
@@ -99,6 +101,15 @@ What part of this lesson would you like me to explain further? Just ask! 📚`;
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isTyping) return;
+
+    if (!canAffordCredits(user, AI_CREDIT_COSTS.ASK_AI)) {
+      toast.error(
+        `No AI credits left today — ${getCreditsRemaining(user)} of ${getDailyLimit(user)} remaining. Resets at midnight or upgrade to Pro.`,
+        { duration: 4000 }
+      );
+      return;
+    }
+    if (user?.id) spendCredits(user.id, user, AI_CREDIT_COSTS.ASK_AI).catch(console.error);
 
     const userMessage = { role: 'user' as const, content: input.trim() };
     const historyBeforeResponse = [...messages, userMessage];
