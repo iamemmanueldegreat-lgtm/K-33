@@ -93,7 +93,7 @@ export default function Home() {
 
 
   return (
-    <div className="space-y-6 pb-6 pt-2">
+    <div className="space-y-6 pb-6 pt-2 max-w-2xl mx-auto w-full">
       
       {/* Header Greeting */}
       <div className="px-1 pt-2 pb-4 flex items-center justify-between">

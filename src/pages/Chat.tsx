@@ -586,7 +586,8 @@ export default function Chat() {
       </header>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 w-full space-y-6 pt-4 pb-32">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 w-full space-y-6 pt-4 pb-32 flex flex-col items-center">
+      <div className="w-full max-w-3xl flex flex-col gap-6">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6">
              <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-neutral-50 tracking-tight font-sans">How can I help you today?</h2>
@@ -641,6 +642,7 @@ export default function Chat() {
           </motion.div>
         )}
         <div ref={messagesEndRef} className="h-6" />
+      </div>
       </div>
 
       {/* Input Area */}

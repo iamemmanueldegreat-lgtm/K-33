@@ -295,7 +295,7 @@ export default function Auth() {
               <div className="flex-1 flex flex-col">
                 {step === 1 && (
                   <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 flex-1 flex flex-col">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">First Name</label>
                         <input
@@ -319,7 +319,7 @@ export default function Auth() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
                         <input

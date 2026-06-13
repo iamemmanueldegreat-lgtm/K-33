@@ -72,7 +72,8 @@ export default function MainLayout() {
       <main className={cn(
         "flex-1 flex flex-col w-full min-h-0",
         !isFullScreenPage ? "p-4 sm:p-6 xl:p-8" : "p-0",
-        (isChatPage || isCoursePage) && "h-full overflow-hidden"
+        !isFullScreenPage && "max-w-4xl mx-auto",
+        (isChatPage || isCoursePage) && "h-full overflow-hidden !max-w-none"
       )}>
         <AnimatePresence mode="wait">
           <motion.div

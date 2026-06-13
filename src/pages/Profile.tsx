@@ -97,10 +97,10 @@ export default function Profile() {
   ];
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-[#0e0e12] pb-28">
+    <div className="min-h-screen bg-neutral-50 dark:bg-[#0e0e12] pb-28 max-w-2xl mx-auto w-full">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 pt-14 pb-5">
+      <div className="flex items-center justify-between px-4 sm:px-6 pt-14 pb-5">
         <button
           onClick={() => navigate('/')}
           className="w-12 h-12 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 flex items-center justify-center shadow-sm active:scale-90 hover:scale-[1.03] transition-all"
@@ -118,7 +118,7 @@ export default function Profile() {
       </div>
 
       {/* Avatar + Name */}
-      <div className="flex flex-col items-center pt-3 pb-8 px-3">
+      <div className="flex flex-col items-center pt-3 pb-8 px-4 sm:px-6">
         <div className="relative group mb-4">
           <button
             onClick={() => avatarInputRef.current?.click()}
@@ -163,7 +163,7 @@ export default function Profile() {
         )}
       </div>
 
-      <div className="px-3 space-y-6 w-full mx-auto">
+      <div className="px-4 sm:px-6 space-y-6 w-full mx-auto">
 
         {/* Portals & Premium Grid */}
         <div className="grid grid-cols-2 gap-3">

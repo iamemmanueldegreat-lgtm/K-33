@@ -360,7 +360,7 @@ export default function Library() {
         <div className="space-y-6 pt-2">
           {selectedCourse === null ? (
             filteredCourses.length > 0 ? (
-              <div className="grid grid-cols-2 gap-4 sm:gap-6 auto-rows-min mt-2 pb-12">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 auto-rows-min mt-2 pb-12">
                 {filteredCourses.map((course, index) => {
                   const theme = CHAPTER_THEMES[index % CHAPTER_THEMES.length];
                   const StampIcon = CHAPTER_STAMPS[index % CHAPTER_STAMPS.length];
@@ -433,7 +433,7 @@ export default function Library() {
             )
           ) : (
             getActiveChapters().length > 0 ? (
-              <div className="grid grid-cols-2 gap-4 sm:gap-6 auto-rows-min mt-2 pb-12">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 auto-rows-min mt-2 pb-12">
                 {getActiveChapters().map((chapter, index) => {
                   const theme = CHAPTER_THEMES[index % CHAPTER_THEMES.length];
                   const StampIcon = CHAPTER_STAMPS[index % CHAPTER_STAMPS.length];
