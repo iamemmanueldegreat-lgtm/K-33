@@ -447,7 +447,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
       {sessionState === 'SETUP' && (
         <div className="w-full max-w-2xl px-2">
           {/* Static Preview Card below sheet if user closes it */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-[24px] p-6 text-center space-y-4 shadow-sm">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[24px] p-6 text-center space-y-4 shadow-sm">
             <div className="w-14 h-14 rounded-full bg-[#14333c]/10 dark:bg-[#14333c]/35 text-[#14333c] dark:text-teal-400 mx-auto flex items-center justify-center">
               <BrainCircuit size={28} className="animate-pulse" />
             </div>
@@ -493,9 +493,9 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                       setShowOverviewSheet(false);
                       onCancel?.();
                     }}
-                    className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-850 dark:text-zinc-100 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
+                    className="absolute top-5 right-5 w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 flex items-center justify-center text-zinc-900 dark:text-zinc-100 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
                   >
-                    <X size={20} className="stroke-[2.5]" />
+                    <X size={20} className="stroke-[3]" />
                   </button>
 
                   {/* Concentric Rainbow Arch Banner Graphic Frame (Mimicking Image 1 Left) */}
@@ -523,7 +523,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                     <p className="text-xs font-bold text-zinc-400 tracking-wider">
                       10 Question
                     </p>
-                    <div className="pt-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-600 dark:text-zinc-350">
+                    <div className="pt-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
                       <span>Total Score:</span>
                       <span className="inline-flex items-center gap-1 bg-[#14333c]/10 dark:bg-[#14333c]/35 text-[#14333c] dark:text-teal-400 px-3 py-1 rounded-full text-xs font-black">
                         <Star size={12} className="fill-[#14333c] dark:fill-teal-400 text-[#14333c] dark:text-teal-400 animate-pulse" />
@@ -592,9 +592,9 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                      onCancel?.();
                    }}
                    title="Exit exam"
-                   className="p-2.5 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-10 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
+                   className="p-2.5 rounded-full bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
                  >
-                   <X size={20} />
+                   <X size={20} className="stroke-[3]" />
                  </button>
                </div>
 

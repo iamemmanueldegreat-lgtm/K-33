@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ChevronLeft, Bell, Sparkles } from 'lucide-react';
+import { ChevronLeft, Bell, Sparkles, Activity } from 'lucide-react';
 
 interface NotificationItem {
   id: string;
@@ -107,7 +107,7 @@ export default function Notifications() {
                 id={`avatar-${item.id}`}
               >
                 {item.id === 'welcome_kortex' ? (
-                  <img src="/logo.png" alt="Kortex AI" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <Activity size={24} className="text-white" />
                 ) : (
                   item.avatar
                 )}

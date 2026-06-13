@@ -134,14 +134,17 @@ export default function Auth() {
     <div className="min-h-[100dvh] bg-background md:bg-[#F3F4F6] flex justify-center items-center font-sans overflow-hidden">
       <div className="w-full h-[100dvh] md:h-[85vh] md:max-h-[850px] md:max-w-[400px] md:rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] flex flex-col bg-[#14333c] relative overflow-hidden">
         
-        {/* Subtle grid background for the top section */}
-        <div 
-          className="absolute inset-0 opacity-[0.07] pointer-events-none" 
-          style={{ 
-            backgroundImage: `linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)`, 
-            backgroundSize: '40px 40px' 
-          }}
-        />
+        {/* Elegant rounded-corner tile grid background inspired by the design */}
+        <div className="absolute top-[-2%] left-[-2%] right-[-2%] h-[48%] overflow-hidden pointer-events-none z-0">
+          <div className="grid grid-cols-4 gap-3.5 p-6">
+            {Array.from({ length: 16 }).map((_, i) => (
+              <div 
+                key={i} 
+                className="aspect-square rounded-[22px] border border-white/[0.07] bg-gradient-to-br from-white/[0.02] to-transparent shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.035)]"
+              />
+            ))}
+          </div>
+        </div>
 
         {/* Header Section (Dark Phase) */}
         <div className="px-6 pt-14 pb-20 flex flex-col z-0 transition-all duration-500 text-white relative">
@@ -153,9 +156,9 @@ export default function Auth() {
                 navigate(-1);
               }
             }}
-            className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-2xl flex items-center justify-center mb-8 border border-white/10 transition-colors backdrop-blur-sm"
+            className="w-11 h-11 bg-white/[0.04] border border-white/10 rounded-[16px] flex items-center justify-center mb-8 transition-colors hover:bg-white/[0.08]"
           >
-            <ArrowLeft size={20} className="text-white" />
+            <ArrowLeft size={18} className="text-white/90" />
           </button>
           
           <AnimatePresence mode="wait">
@@ -166,9 +169,9 @@ export default function Auth() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-3"
             >
-              <h1 className="text-[32px] font-semibold leading-[1.15] tracking-tight">
+              <h1 className="text-[28px] sm:text-[32px] font-semibold leading-[1.18] tracking-tight">
                 {isLogin 
-                  ? "Log in to access your personal account" 
+                  ? "Go ahead and complete your account and setup" 
                   : step === 1 
                     ? "Sign up now to access your personal account"
                     : step === 2
@@ -176,9 +179,9 @@ export default function Auth() {
                       : "Finalizing your academic profile"
                 }
               </h1>
-              <p className="text-white/70 text-[15px] font-medium leading-snug">
+              <p className="text-white/60 text-[14px] sm:text-[15px] font-medium leading-snug">
                 {isLogin 
-                  ? "Sign in to continue your learning journey and access your dashboard."
+                  ? "Create your account and simplify your workflow instantly."
                   : step === 1 
                     ? "Sign up to access your account and exclusive features."
                     : step === 2

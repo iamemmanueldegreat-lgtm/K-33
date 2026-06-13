@@ -123,17 +123,17 @@ export default function Course() {
   }, [topics, chapterQuery]);
 
   return (
-    <div className="min-h-screen bg-[#F4F4F6] text-black font-sans selection:bg-black/10 pb-12">
+    <div className="min-h-screen bg-neutral-50 dark:bg-[#0e0e12] text-zinc-900 dark:text-zinc-100 font-sans selection:bg-[#7C3AED]/10 pb-12">
       {/* Navbar Minimal */}
-      <header className="sticky top-0 z-40 bg-[#F4F4F6]/90 backdrop-blur-md pt-5 pb-4 px-5 sm:px-6 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-neutral-50/90 dark:bg-[#0e0e12]/90 backdrop-blur-md pt-5 pb-4 px-5 sm:px-6 flex items-center justify-between">
         <button 
           onClick={() => navigate('/library')}
-          className="text-black hover:opacity-70 transition-opacity"
+          className="text-zinc-800 dark:text-zinc-200 hover:opacity-70 transition-opacity"
         >
           <ArrowLeft size={24} strokeWidth={1.5} />
         </button>
-        <span className="font-bold text-[17px] tracking-tight">{chapterQuery ? "Chapter" : "Textbook"}</span>
-        <button className="text-black hover:opacity-70 transition-opacity">
+        <span className="font-bold text-[17px] tracking-tight text-zinc-900 dark:text-zinc-100">{chapterQuery ? "Chapter" : "Textbook"}</span>
+        <button className="text-zinc-800 dark:text-zinc-200 hover:opacity-70 transition-opacity">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
         </button>
       </header>
@@ -150,12 +150,12 @@ export default function Course() {
             {/* Header Section (Book Info) */}
             <div className="flex justify-between items-start gap-4">
               <div className="space-y-1 sm:space-y-1.5 flex-1 pt-1">
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-black leading-tight">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 leading-tight">
                   {chapterQuery ? chapterQuery : (course?.title || 'Untitled Course')}
                 </h1>
-                {course && <p className="text-sm font-semibold text-black/80">{course?.department || 'General'}</p>}
-                {course && <p className="text-sm text-black/50 font-medium">Code: {course?.code || 'N/A'}</p>}
-                {course && <p className="text-sm text-black/50 font-medium">{course?.school || 'University'}</p>}
+                {course && <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-300">{course?.department || 'General'}</p>}
+                {course && <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Code: {course?.code || 'N/A'}</p>}
+                {course && <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">{course?.school || 'University'}</p>}
               </div>
 
               {/* Cover Image Placeholder */}
@@ -177,12 +177,12 @@ export default function Course() {
 
             {/* Curriculum / Solutions List */}
             <div className="space-y-4">
-              <h2 className="text-[19px] sm:text-[21px] font-bold tracking-tight text-black">Topics</h2>
+              <h2 className="text-[19px] sm:text-[21px] font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Topics</h2>
               
               <div className="space-y-4">
                 {groupedChapters.length === 0 ? (
                   <div className="text-center py-16 px-6">
-                    <p className="text-black/50 font-medium">No topics available yet.</p>
+                    <p className="text-zinc-500 dark:text-zinc-400 font-medium">No topics available yet.</p>
                   </div>
                 ) : (
                   groupedChapters.map((group, chapterIdx) => {
@@ -192,7 +192,7 @@ export default function Course() {
                     return (
                       <div key={group.chapter} className="space-y-3">
                         {!chapterQuery && (
-                          <h3 className="text-xs font-bold text-black/40 uppercase tracking-widest mt-6 first:mt-0 mb-1 ml-1">
+                          <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mt-6 first:mt-0 mb-1 ml-1">
                             {group.chapter}
                           </h3>
                         )}
@@ -202,13 +202,13 @@ export default function Course() {
                             <button
                               key={topic.id}
                               onClick={() => navigate(`/study/${courseId}/${topic.id}`)}
-                              className="bg-white rounded-[14px] p-4 sm:p-5 flex items-start text-left shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-black/[0.04] active:scale-[0.98] transition-transform"
+                              className="bg-white dark:bg-[#1a1a24] rounded-[14px] p-4 sm:p-5 flex items-start text-left shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-zinc-200/60 dark:border-zinc-800/80 active:scale-[0.98] transition-transform"
                             >
                               <div className="flex items-start gap-4 w-full">
-                                <span className="text-base sm:text-lg font-bold text-black min-w-[20px] pt-px">
+                                <span className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 min-w-[20px] pt-px">
                                   {topicIdx + 1}
                                 </span>
-                                <span className="text-[17px] sm:text-lg text-black/80 font-medium leading-[1.3]">
+                                <span className="text-[17px] sm:text-lg text-zinc-850 dark:text-zinc-200 font-medium leading-[1.3]">
                                   {topic.title}
                                 </span>
                               </div>

@@ -55,10 +55,13 @@ export default function RepDashboard() {
     if (user?.rep_coupon_code) {
       fetchReferrals();
     }
-    if (user) {
+  }, [user?.rep_coupon_code]);
+
+  useEffect(() => {
+    if (user?.id) {
       fetchMyWithdrawals();
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchMyWithdrawals = async () => {
     if (!user) return;

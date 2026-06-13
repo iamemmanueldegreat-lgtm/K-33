@@ -27,12 +27,14 @@ export default function MainLayout() {
   }, [location.pathname, location.search]);
 
   const isChatPage = location.pathname === '/chat';
-  const isProfilePage = location.pathname === '/profile';
   const isCoursePage = location.pathname.startsWith('/course/');
   const isBillingPage = location.pathname === '/billing';
   
-  // Hide bottom tab bar on AI Chat and Billing/Premium pages
-  const hideTabBar = isChatPage || isBillingPage;
+  const fullScreenRoutes = ['/profile', '/edit-profile', '/academic-profile', '/notifications', '/rep', '/admin'];
+  const isFullScreenPage = fullScreenRoutes.includes(location.pathname) || isChatPage || isCoursePage || isBillingPage;
+  
+  // Hide bottom tab bar on Billing/Premium pages
+  const hideTabBar = isBillingPage;
   const navigate = useNavigate();
 
   // Define active tabs sections dynamically to support active states for nested routes
@@ -68,7 +70,7 @@ export default function MainLayout() {
 
       <main className={cn(
         "flex-1 flex flex-col w-full min-h-0",
-        (!isChatPage && !isProfilePage && !isCoursePage && !isBillingPage) ? "p-4 sm:p-6 xl:p-8" : "p-0",
+        !isFullScreenPage ? "p-4 sm:p-6 xl:p-8" : "p-0",
         (isChatPage || isCoursePage) && "h-full overflow-hidden"
       )}>
         <AnimatePresence mode="wait">
