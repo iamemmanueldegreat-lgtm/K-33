@@ -489,7 +489,7 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = parseInt(process.env.PORT || "5000", 10);
 
   // Middleware to log requests
   app.use((req, res, next) => {
