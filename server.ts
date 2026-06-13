@@ -487,9 +487,8 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
   return list.slice(0, num);
 }
 
-async function startServer() {
+async function createApp() {
   const app = express();
-  const PORT = parseInt(process.env.PORT || "5000", 10);
 
   // Middleware to log requests
   app.use((req, res, next) => {
@@ -1100,33 +1099,6 @@ When the user asks questions or raises issues, prioritize referencing, explainin
     });
   }
 
-  async function runStartupDiagnostics() {
-    console.log("\n=================== STARTUP DIAGNOSTICS ===================");
-    const dsKey = process.env.DEEPSEEK_API_KEY;
-    const gemKey = process.env.GEMINI_API_KEY;
-    const activeKey = dsKey || gemKey;
-    console.log(`[DIAG] DEEPSEEK_API_KEY: ${dsKey ? "PRESENT (" + dsKey.slice(0, 4) + "..." + dsKey.slice(-4) + ")" : "MISSING"}`);
-    console.log(`[DIAG] GEMINI_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
-    console.log(`[DIAG] Active Key Source: ${dsKey ? "DEEPSEEK_API_KEY" : (gemKey ? "GEMINI_API_KEY (Fallback for DeepSeek)" : "NONE")}`);
-
-    if (activeKey) {
-      try {
-        console.log(`[DIAG] Testing API with deepseek-chat...`);
-        const ai = getGeminiClient();
-        const testRes = await ai.models.generateContent({
-          model: "deepseek-chat",
-          contents: "Say 'DeepSeek OK'",
-        });
-        console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
-      } catch (e: any) {
-        console.error(`[DIAG] DeepSeek connection failure: ${e.message || e}`);
-      }
-    } else {
-      console.log("[DIAG] Warning: Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is defined. AI interactions will fail.");
-    }
-    console.log("===================================================================\n");
-  }
-
   app.use((err: any, req: any, res: any, next: any) => {
     console.error("Express App Error:", err);
     if (!res.headersSent) {
@@ -1134,6 +1106,39 @@ When the user asks questions or raises issues, prioritize referencing, explainin
     }
   });
 
+  return app;
+}
+
+async function runStartupDiagnostics() {
+  console.log("\n=================== STARTUP DIAGNOSTICS ===================");
+  const dsKey = process.env.DEEPSEEK_API_KEY;
+  const gemKey = process.env.GEMINI_API_KEY;
+  const activeKey = dsKey || gemKey;
+  console.log(`[DIAG] DEEPSEEK_API_KEY: ${dsKey ? "PRESENT (" + dsKey.slice(0, 4) + "..." + dsKey.slice(-4) + ")" : "MISSING"}`);
+  console.log(`[DIAG] GEMINI_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
+  console.log(`[DIAG] Active Key Source: ${dsKey ? "DEEPSEEK_API_KEY" : (gemKey ? "GEMINI_API_KEY (Fallback for DeepSeek)" : "NONE")}`);
+
+  if (activeKey) {
+    try {
+      console.log(`[DIAG] Testing API with deepseek-chat...`);
+      const ai = getGeminiClient();
+      const testRes = await ai.models.generateContent({
+        model: "deepseek-chat",
+        contents: "Say 'DeepSeek OK'",
+      });
+      console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
+    } catch (e: any) {
+      console.error(`[DIAG] DeepSeek connection failure: ${e.message || e}`);
+    }
+  } else {
+    console.log("[DIAG] Warning: Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is defined. AI interactions will fail.");
+  }
+  console.log("===================================================================\n");
+}
+
+async function startServer() {
+  const PORT = parseInt(process.env.PORT || "5000", 10);
+  const app = await createApp();
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     runStartupDiagnostics().catch(err => {
@@ -1142,4 +1147,16 @@ When the user asks questions or raises issues, prioritize referencing, explainin
   });
 }
 
-startServer();
+// Vercel serverless export — Vercel calls this instead of app.listen()
+let _vercelApp: any = null;
+export default async (req: any, res: any) => {
+  if (!_vercelApp) {
+    _vercelApp = await createApp();
+  }
+  _vercelApp(req, res);
+};
+
+// Only start the HTTP server in non-Vercel environments
+if (!process.env.VERCEL) {
+  startServer();
+}
