@@ -4,6 +4,15 @@ import OpenAI from "openai";
 import { jsonrepair } from "jsonrepair";
 import rateLimit from "express-rate-limit";
 
+const Type = {
+  OBJECT: "object",
+  STRING: "string",
+  ARRAY: "array",
+  INTEGER: "integer",
+  NUMBER: "number",
+  BOOLEAN: "boolean",
+} as const;
+
 // Lazy-loaded DeepSeek Client for full-stack API safety
 let openaiClient: OpenAI | null = null;
 let lastApiKey: string | null = null;
