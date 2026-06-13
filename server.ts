@@ -2,13 +2,7 @@ import express from "express";
 import path from "path";
 import OpenAI from "openai";
 import { jsonrepair } from "jsonrepair";
-
-const Type = {
-  OBJECT: "object",
-  ARRAY: "array",
-  STRING: "string",
-  INTEGER: "integer"
-};
+import rateLimit from "express-rate-limit";
 
 // Lazy-loaded DeepSeek Client for full-stack API safety
 let openaiClient: OpenAI | null = null;
@@ -511,6 +505,20 @@ async function createApp() {
     next(err);
   });
 
+  // Rate limiting — 30 AI requests per minute per IP
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please wait a moment before trying again." }
+  });
+  app.use("/api/generate-course", aiLimiter);
+  app.use("/api/generate-study", aiLimiter);
+  app.use("/api/generate-quiz", aiLimiter);
+  app.use("/api/quiz-explain", aiLimiter);
+  app.use("/api/chat", aiLimiter);
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     const dsKey = process.env.DEEPSEEK_API_KEY;
@@ -571,6 +579,9 @@ async function createApp() {
 
   app.post("/api/generate-course", async (req, res) => {
     const { department } = req.body;
+    if (!department || typeof department !== "string" || !department.trim()) {
+      return res.status(400).json({ error: "department is required" });
+    }
     const prompt = `You are a world-class university curriculum designer. Create ONE highly realistic, comprehensive course for the "${department}" department.
 Include:
 1. school (set as "University Level")
@@ -629,6 +640,9 @@ Include:
 
   app.post("/api/generate-study", async (req, res) => {
     const { topic, course, level, department, school } = req.body;
+    if (!topic || typeof topic !== "string" || !topic.trim()) {
+      return res.status(400).json({ error: "topic is required" });
+    }
     
     const systemPrompt = `You are an expert, patient, and highly detailed university professor. Your job is to teach full curriculum topics to students who rely entirely on you for their education. You must be comprehensive, rigorous, and thorough, leaving no part of the topic unexplained.
 
@@ -903,8 +917,13 @@ Answer the student's question clearly, thoroughly, and encouragingly in 2 to 4 s
       console.error(`Quiz explanation failed:`, error);
       return res.status(500).json({ error: error.message || "Failed to generate explanation." });
     }
-  });  app.post("/api/chat", async (req, res) => {
+  });
+
+  app.post("/api/chat", async (req, res) => {
     const { messages, model, student, topicTitle, courseTitle, studyContext } = req.body;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "messages array is required" });
+    }
     const department = student?.department || "";
     const level = student?.level || "";
     const school = student?.school || "";
@@ -914,6 +933,10 @@ Answer the student's question clearly, thoroughly, and encouragingly in 2 to 4 s
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+
+    // Stop generating if client disconnects — saves API tokens
+    let clientDisconnected = false;
+    req.on("close", () => { clientDisconnected = true; });
 
     try {
       const chatMessages = messages.map((m: any) => ({
@@ -1078,6 +1101,7 @@ When the user asks questions or raises issues, prioritize referencing, explainin
       });
 
       for await (const chunk of responseStream) {
+        if (clientDisconnected) break;
         const text = chunk.text || "";
         if (text) {
           res.write(`data: ${JSON.stringify({ text })}\n\n`);

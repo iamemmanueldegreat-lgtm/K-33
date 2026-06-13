@@ -520,7 +520,7 @@ export default function Admin() {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm space-y-4">
             <div>
               <h3 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2 mb-1">
-                <Edit2 size={20} className="text-sky-505" />
+                <Edit2 size={20} className="text-sky-500" />
                 Manage & Edit Courses
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
