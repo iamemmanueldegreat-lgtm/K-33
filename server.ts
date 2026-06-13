@@ -14,15 +14,18 @@ const Type = {
 // Lazy-loaded DeepSeek Client for full-stack API safety
 let openaiClient: OpenAI | null = null;
 let lastApiKey: string | null = null;
+
 function getGeminiClient(): any {
-  const key = process.env.DEEPSEEK_API_KEY || process.env.GEMINI_API_KEY;
-  if (!key) {
-    throw new Error("DEEPSEEK_API_KEY or GEMINI_API_KEY environment variable is required.");
+  const dsKey = process.env.DEEPSEEK_API_KEY;
+
+  if (!dsKey) {
+    throw new Error("Something went wrong. We couldn't complete your request right now. Please try again in a few moments.");
   }
-  if (!openaiClient || key !== lastApiKey) {
-    lastApiKey = key;
+
+  if (!openaiClient || dsKey !== lastApiKey) {
+    lastApiKey = dsKey;
     openaiClient = new OpenAI({
-      apiKey: key,
+      apiKey: dsKey,
       baseURL: "https://api.deepseek.com/v1"
     });
   }

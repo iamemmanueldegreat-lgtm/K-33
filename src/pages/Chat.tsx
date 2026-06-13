@@ -586,7 +586,7 @@ export default function Chat() {
       </header>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 w-full space-y-6 pt-4 pb-48">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 w-full space-y-6 pt-4 pb-32">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6">
              <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-neutral-50 tracking-tight font-sans">How can I help you today?</h2>
@@ -644,7 +644,7 @@ export default function Chat() {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 pb-24 sm:p-4 sm:pb-28 bg-gradient-to-t from-background from-45% via-background/95 to-transparent pt-12 pointer-events-none">
+      <div className="absolute bottom-0 left-0 right-0 p-3 pb-6 sm:p-4 sm:pb-8 bg-gradient-to-t from-background from-50% via-background/90 to-transparent pt-12 pointer-events-none">
         
         {messages.length === 0 && (
           <div className="w-full px-4 sm:px-6 mb-3 pointer-events-auto overflow-x-auto sm:overflow-x-visible pb-2 sm:pb-0 scrollbar-none whitespace-nowrap flex sm:flex-wrap gap-2 justify-start sm:justify-center">

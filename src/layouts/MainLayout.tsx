@@ -29,12 +29,13 @@ export default function MainLayout() {
   const isChatPage = location.pathname === '/chat';
   const isCoursePage = location.pathname.startsWith('/course/');
   const isBillingPage = location.pathname === '/billing';
+  const isRepPage = location.pathname.startsWith('/rep');
   
   const fullScreenRoutes = ['/profile', '/edit-profile', '/academic-profile', '/notifications', '/rep', '/admin'];
   const isFullScreenPage = fullScreenRoutes.includes(location.pathname) || isChatPage || isCoursePage || isBillingPage;
   
-  // Hide bottom tab bar on Billing/Premium pages
-  const hideTabBar = isBillingPage;
+  // Hide bottom tab bar on Billing/Premium, AI Chat, and Representative Portal pages
+  const hideTabBar = isBillingPage || isChatPage || isRepPage;
   const navigate = useNavigate();
 
   // Define active tabs sections dynamically to support active states for nested routes
