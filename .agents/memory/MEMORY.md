@@ -1,1 +1,0 @@
-- [Vercel deployment config](vercel-deployment.md) — vercel.json at root builds kortex frontend; api/index.js handles all AI routes server-side with DeepSeek.
