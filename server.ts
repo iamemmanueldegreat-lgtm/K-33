@@ -511,6 +511,18 @@ async function createApp() {
     next(err);
   });
 
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    const dsKey = process.env.DEEPSEEK_API_KEY;
+    const gemKey = process.env.GEMINI_API_KEY;
+    res.json({
+      status: "ok",
+      ai: (dsKey || gemKey) ? "connected" : "missing_key",
+      provider: dsKey ? "deepseek" : gemKey ? "gemini" : "none",
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // API Diagnostics Route using Gemini
   app.get("/api/diagnostics", async (req, res) => {
     const results: any = {
