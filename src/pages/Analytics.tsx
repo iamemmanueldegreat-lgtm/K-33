@@ -183,11 +183,15 @@ export default function Analytics() {
               const date = new Date();
               date.setDate(date.getDate() - 3 + i);
               const isToday = i === 3;
-              
-              const daysAgo = 3 - i;
-              const isCompleted = daysAgo >= 0 && daysAgo < streakCount;
+              const dateStr = date.toISOString().split('T')[0];
+              const dayStats = user?.academic_stats_by_date?.[dateStr];
+              const isCompleted = !!dayStats && (
+                (dayStats.answered ?? 0) > 0 ||
+                (dayStats.finished_reading ?? 0) > 0 ||
+                (dayStats.started_reading ?? 0) > 0
+              );
 
-              const dayName = date.toLocaleDateString('en-US', { weekday: 'narrow' }); // Single letter
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'narrow' });
               const dayDate = date.getDate();
 
                return (
