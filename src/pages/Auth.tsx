@@ -146,8 +146,8 @@ export default function Auth() {
           </div>
         </div>
 
-        {/* Header Section (Dark Phase) */}
-        <div className="px-6 pt-14 pb-20 flex flex-col z-0 transition-all duration-500 text-white relative">
+        {/* Header Section (Dark Phase) — compact on small viewports */}
+        <div className="px-6 pt-6 sm:pt-14 pb-6 sm:pb-20 flex flex-col z-0 transition-all duration-500 text-white relative">
           <button 
             onClick={() => {
               if (!isLogin && step > 1) {
@@ -156,7 +156,7 @@ export default function Auth() {
                 navigate(-1);
               }
             }}
-            className="w-11 h-11 bg-white/[0.04] border border-white/10 rounded-[16px] flex items-center justify-center mb-8 transition-colors hover:bg-white/[0.08]"
+            className="w-11 h-11 bg-white/[0.04] border border-white/10 rounded-[16px] flex items-center justify-center mb-4 sm:mb-8 transition-colors hover:bg-white/[0.08]"
           >
             <ArrowLeft size={18} className="text-white/90" />
           </button>
@@ -167,9 +167,9 @@ export default function Auth() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-3"
+              className="space-y-2 sm:space-y-3"
             >
-              <h1 className="text-[28px] sm:text-[32px] font-semibold leading-[1.18] tracking-tight">
+              <h1 className="text-[22px] sm:text-[28px] font-semibold leading-[1.18] tracking-tight">
                 {isLogin 
                   ? "Go ahead and complete your account and setup" 
                   : step === 1 
@@ -179,7 +179,7 @@ export default function Auth() {
                       : "Finalizing your academic profile"
                 }
               </h1>
-              <p className="text-white/60 text-[14px] sm:text-[15px] font-medium leading-snug">
+              <p className="text-white/60 text-[13px] sm:text-[15px] font-medium leading-snug">
                 {isLogin 
                   ? "Create your account and simplify your workflow instantly."
                   : step === 1 
@@ -194,10 +194,10 @@ export default function Auth() {
         </div>
 
         {/* Form Section (Theme-Aware) */}
-        <div className="flex-1 bg-background dark:bg-card rounded-t-[36px] px-6 pt-8 pb-10 flex flex-col z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] relative overflow-y-auto custom-scrollbar border-t border-white/10">
+        <div className="flex-1 bg-background dark:bg-card rounded-t-[36px] px-6 pt-5 sm:pt-8 pb-8 flex flex-col z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] relative overflow-y-auto custom-scrollbar border-t border-white/10">
           
           {/* Toggle Switch */}
-          <div className="bg-muted/10 dark:bg-white/5 rounded-2xl p-1.5 flex mb-8 border border-border/50">
+          <div className="bg-muted/10 dark:bg-white/5 rounded-2xl p-1.5 flex mb-5 sm:mb-8 border border-border/50">
             <button 
               type="button"
               onClick={() => { setIsLogin(true); setStep(1); setConfirmPassword(''); }}

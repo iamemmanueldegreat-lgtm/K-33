@@ -574,7 +574,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
 
       {/* ACTIVE QUIZ VIEW STATE (FULL-SCREEN EXPERIENCE - Recreating Image 2 exactly) */}
       {sessionState === 'QUIZ' && questions.length > 0 && (
-         <div className="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex flex-col justify-between w-screen h-screen overflow-hidden">
+         <div className="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex flex-col justify-between w-full h-[100dvh] overflow-hidden">
            
            {/* UPPER SECTION: White / Light Gray Workspace spanning top screen - Compacted to go up more */}
            <div className="w-full flex-none flex flex-col bg-white dark:bg-zinc-950 pt-5 pb-3 px-5 sm:px-8 items-center border-b border-zinc-50 dark:border-zinc-900/40">
@@ -630,7 +630,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
            </div>
 
            {/* LOWER SECTION: Royal Purple/Indigo rounded drawer filling bottom screen. Covering more than half of the screen. */}
-           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 pb-5 sm:px-12 sm:pt-6 sm:pb-6 flex flex-col justify-between w-full shadow-2xl z-20 flex-1 min-h-0 overflow-hidden">
+           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 pb-[env(safe-area-inset-bottom,20px)] sm:px-12 sm:pt-6 flex flex-col justify-between w-full shadow-2xl z-20 flex-1 min-h-0 overflow-hidden">
              <div className="max-w-xl mx-auto w-full flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
                
                {/* Centered label */}
