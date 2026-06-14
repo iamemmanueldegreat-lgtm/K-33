@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, Target, Play, RotateCcw, CheckCircle2, XCircle, BrainCircuit, Sparkles, AlertCircle, ChevronRight, Coins, HelpCircle, ArrowRight, Hourglass, X, Star, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
-import { canAffordCredits, getCreditsRemaining, getDailyLimit, spendCredits, AI_CREDIT_COSTS } from '../lib/credits';
+import { canUnlockTopic, unlockTopic } from '../lib/credits';
 import { toast } from 'react-hot-toast';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -84,12 +84,13 @@ interface PracticeQuizProps {
   courseTitle: string;
   courseCode: string;
   topicTitle: string;
+  topicId?: string;
   preGeneratedQuestions?: any[];
   chapter?: string;
   onCancel?: () => void;
 }
 
-export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preGeneratedQuestions, chapter, onCancel }: PracticeQuizProps) {
+export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, topicId, preGeneratedQuestions, chapter, onCancel }: PracticeQuizProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -219,15 +220,13 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
 
     // Otherwise, generate 10 dynamic LLM active recall questions online
     try {
-      if (!canAffordCredits(user, AI_CREDIT_COSTS.QUIZ_GENERATION)) {
-        toast.error(
-          `No AI credits left today — ${getCreditsRemaining(user)} of ${getDailyLimit(user)} remaining. Resets at midnight or upgrade to Pro.`,
-          { duration: 4000 }
-        );
+      if (!canUnlockTopic(user, topicId ?? topicTitle)) {
+        toast.error('Free topic limit reached. Upgrade to Pro to unlock unlimited quizzes.', { duration: 4000 });
         setSessionState('SETUP');
+        navigate('/billing');
         return;
       }
-      if (user?.id) spendCredits(user.id, user, AI_CREDIT_COSTS.QUIZ_GENERATION).catch(console.error);
+      if (user?.id) unlockTopic(user.id, topicId ?? topicTitle).catch(console.error);
 
       const res = await fetch("/api/generate-quiz", {
         method: "POST",

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, Sparkles, Brain, ArrowUp, Plus, Mic, Activity } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
-import { canAffordCredits, getCreditsRemaining, getDailyLimit, spendCredits, AI_CREDIT_COSTS } from '../lib/credits';
+import { canSendChat, spendChatCredit } from '../lib/credits';
 
 interface AskAiDrawerProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export default function AskAiDrawer({
   setMessages
 }: AskAiDrawerProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -102,14 +104,12 @@ What part of this lesson would you like me to explain further? Just ask! 📚`;
     if (e) e.preventDefault();
     if (!input.trim() || isTyping) return;
 
-    if (!canAffordCredits(user, AI_CREDIT_COSTS.ASK_AI)) {
-      toast.error(
-        `No AI credits left today — ${getCreditsRemaining(user)} of ${getDailyLimit(user)} remaining. Resets at midnight or upgrade to Pro.`,
-        { duration: 4000 }
-      );
+    if (!canSendChat(user)) {
+      toast.error('You\'ve used all 10 free questions. Upgrade to Pro to keep asking.', { duration: 4000 });
+      navigate('/billing');
       return;
     }
-    if (user?.id) spendCredits(user.id, user, AI_CREDIT_COSTS.ASK_AI).catch(console.error);
+    if (user?.id) spendChatCredit(user.id).catch(console.error);
 
     const userMessage = { role: 'user' as const, content: input.trim() };
     const historyBeforeResponse = [...messages, userMessage];
