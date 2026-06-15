@@ -160,7 +160,7 @@ export default function Auth() {
       <div className="w-full h-[100dvh] md:h-[85vh] md:max-h-[850px] md:max-w-[400px] md:rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] flex flex-col bg-[#14333c] relative overflow-hidden">
         
         {/* Elegant rounded-corner tile grid background inspired by the design */}
-        <div className="absolute top-[-2%] left-[-2%] right-[-2%] h-[34%] overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-2%] left-[-2%] right-[-2%] h-[44%] overflow-hidden pointer-events-none z-0">
           <div className="grid grid-cols-4 gap-3.5 p-6">
             {Array.from({ length: 16 }).map((_, i) => (
               <div 
@@ -172,7 +172,7 @@ export default function Auth() {
         </div>
 
         {/* Header Section (Dark Phase) — compact on small viewports */}
-        <div className="px-6 pt-4 sm:pt-6 pb-4 sm:pb-8 flex flex-col z-0 transition-all duration-500 text-white relative">
+        <div className="px-6 pt-5 sm:pt-8 pb-6 sm:pb-14 flex flex-col z-0 transition-all duration-500 text-white relative">
           <button 
             onClick={() => {
               if (!isLogin && step > 1) {
