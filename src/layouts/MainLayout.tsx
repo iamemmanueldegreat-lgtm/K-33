@@ -6,7 +6,6 @@ import { twMerge } from 'tailwind-merge';
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
-import PWAPromptBanner from '../components/PWAPromptBanner';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -66,9 +65,6 @@ export default function MainLayout() {
       !hideTabBar && "pb-20",
       (isChatPage || isCoursePage) && "h-[100dvh] overflow-hidden !pb-0" // override to prevent main page scroll
     )}>
-      {/* Dynamic PWA installation reminder banner */}
-      <PWAPromptBanner />
-
       <main className={cn(
         "flex-1 flex flex-col w-full min-h-0",
         !isFullScreenPage ? "p-4 sm:p-6 xl:p-8" : "p-0",

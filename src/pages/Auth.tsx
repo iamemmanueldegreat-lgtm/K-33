@@ -16,10 +16,34 @@ const REGISTER_SCHOOLS: Record<string, string[]> = {
   'Edo': ['Auchi Polytechnic']
 };
 
+function getAuthErrorMessage(error: any): string {
+  switch (error?.code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+      return 'Incorrect email or password. Please try again.';
+    case 'auth/user-not-found':
+      return 'No account found with that email address.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please wait a moment and try again.';
+    case 'auth/email-already-in-use':
+      return 'An account already exists with this email address.';
+    case 'auth/weak-password':
+      return 'Your password must be at least 6 characters.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection and try again.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}
+
 export default function Auth() {
   const { refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(() => !!localStorage.getItem('kortex_returning_user'));
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -53,6 +77,7 @@ export default function Auth() {
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        localStorage.setItem('kortex_returning_user', '1');
         toast.success("Welcome back!");
         await refreshProfile();
       } else {
@@ -80,7 +105,7 @@ export default function Auth() {
         toast.success("Account created successfully!");
       }
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -135,7 +160,7 @@ export default function Auth() {
       <div className="w-full h-[100dvh] md:h-[85vh] md:max-h-[850px] md:max-w-[400px] md:rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] flex flex-col bg-[#14333c] relative overflow-hidden">
         
         {/* Elegant rounded-corner tile grid background inspired by the design */}
-        <div className="absolute top-[-2%] left-[-2%] right-[-2%] h-[48%] overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-2%] left-[-2%] right-[-2%] h-[34%] overflow-hidden pointer-events-none z-0">
           <div className="grid grid-cols-4 gap-3.5 p-6">
             {Array.from({ length: 16 }).map((_, i) => (
               <div 
@@ -147,7 +172,7 @@ export default function Auth() {
         </div>
 
         {/* Header Section (Dark Phase) — compact on small viewports */}
-        <div className="px-6 pt-6 sm:pt-14 pb-6 sm:pb-20 flex flex-col z-0 transition-all duration-500 text-white relative">
+        <div className="px-6 pt-4 sm:pt-6 pb-4 sm:pb-8 flex flex-col z-0 transition-all duration-500 text-white relative">
           <button 
             onClick={() => {
               if (!isLogin && step > 1) {

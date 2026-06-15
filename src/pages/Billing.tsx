@@ -369,13 +369,10 @@ export default function Billing() {
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Bottom block with Coupon Input [when not pro] and Action Button */}
-            <div className="mt-auto w-full flex flex-col items-center">
+              {/* Coupon Code Input */}
               {!user?.is_pro && (
-                /* Coupon Code Input - perfectly centered in the middle of the space! */
-                <div className="w-full mb-6 flex gap-2">
+                <div className="w-full mt-4 flex gap-2">
                   <input 
                     type="text" 
                     value={couponInput}
@@ -393,7 +390,10 @@ export default function Billing() {
                   </button>
                 </div>
               )}
+            </div>
 
+            {/* Bottom block with Action Button */}
+            <div className="mt-auto w-full flex flex-col items-center">
               {/* Action Button - Fully Matches Mockup with sky-blue pill button and right-pointing caret symbol */}
               <button
                 onClick={startMonnifyCheckout}
