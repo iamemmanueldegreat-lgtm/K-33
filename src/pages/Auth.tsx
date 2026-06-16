@@ -5,16 +5,10 @@ import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { EDO_STATE_SCHOOLS, AUCHI_POLY_DEPARTMENTS, NIGERIAN_SCHOOLS, STANDARD_DEPARTMENTS } from '../lib/constants';
+import { NIGERIAN_SCHOOLS, NIGERIAN_STATES, STANDARD_DEPARTMENTS, POLYTECHNIC_DEPARTMENTS, UNIVERSITY_LEVELS, POLYTECHNIC_LEVELS, isPolytechnic } from '../lib/constants';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-
-// For testing purposes, we limit to Edo State & Auchi Polytechnic under ND1/ND2 Computer Science
-const NIGERIAN_STATES = ["Edo"];
-const REGISTER_SCHOOLS: Record<string, string[]> = {
-  'Edo': ['Auchi Polytechnic']
-};
 
 function getAuthErrorMessage(error: any): string {
   switch (error?.code) {
@@ -55,10 +49,10 @@ export default function Auth() {
     password: '',
     firstName: '',
     lastName: '',
-    state: 'Edo',
-    school: 'Auchi Polytechnic',
-    department: 'Computer Science',
-    level: 'ND1'
+    state: '',
+    school: '',
+    department: '',
+    level: ''
   });
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -70,6 +64,14 @@ export default function Auth() {
       }
       if (formData.password !== confirmPassword) {
         toast.error("Passwords do not match!");
+        return;
+      }
+      if (!formData.department) {
+        toast.error("Please select your department");
+        return;
+      }
+      if (!formData.level) {
+        toast.error("Please select your current level");
         return;
       }
     }
@@ -399,33 +401,33 @@ export default function Auth() {
                         className="w-full bg-surface dark:bg-white/5 border border-border dark:border-white/10 rounded-2xl px-4 py-4 text-[14px] font-semibold text-text outline-none focus:border-[#14333c] focus:ring-4 focus:ring-[#14333c]/10 transition-all appearance-none"
                         style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%230D4C50' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right .75rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em` }}
                         value={formData.state}
-                        onChange={e => setFormData({ ...formData, state: e.target.value })}
+                        onChange={e => setFormData({ ...formData, state: e.target.value, school: '', department: '', level: '' })}
                       >
-                        <option value="">Select State</option>
+                        <option value="">Select your state</option>
                         {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">Institution Name</label>
-                      {REGISTER_SCHOOLS[formData.state] ? (
+                      {NIGERIAN_SCHOOLS[formData.state]?.length ? (
                         <select
                           required
                           className="w-full bg-surface dark:bg-white/5 border border-border dark:border-white/10 rounded-2xl px-4 py-4 text-[14px] font-semibold text-text outline-none focus:border-[#14333c] focus:ring-4 focus:ring-[#14333c]/10 transition-all appearance-none"
                           style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%230D4C50' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right .75rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em` }}
                           value={formData.school}
-                          onChange={e => setFormData({ ...formData, school: e.target.value })}
+                          onChange={e => setFormData({ ...formData, school: e.target.value, department: '', level: '' })}
                         >
                           <option value="" disabled>Select your institution</option>
-                          {REGISTER_SCHOOLS[formData.state].map(s => <option key={s} value={s}>{s}</option>)}
+                          {NIGERIAN_SCHOOLS[formData.state].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       ) : (
                         <input
                           type="text"
                           required
                           className="w-full bg-surface dark:bg-white/5 border border-border dark:border-white/10 rounded-2xl px-4 py-4 text-[14px] font-semibold text-text outline-none focus:border-[#14333c] focus:ring-4 focus:ring-[#14333c]/10 transition-all"
-                          placeholder="e.g. UNILAG, UI"
+                          placeholder="Type your institution name"
                           value={formData.school}
-                          onChange={e => setFormData({ ...formData, school: e.target.value })}
+                          onChange={e => setFormData({ ...formData, school: e.target.value, department: '', level: '' })}
                         />
                       )}
                     </div>
@@ -447,20 +449,20 @@ export default function Auth() {
                         onChange={e => setFormData({ ...formData, department: e.target.value })}
                       >
                         <option value="" disabled>Select your department</option>
-                        {(formData.school === 'Auchi Polytechnic' ? ['Computer Science'] : STANDARD_DEPARTMENTS).map(d => <option key={d} value={d}>{d}</option>)}
+                        {(isPolytechnic(formData.school) ? POLYTECHNIC_DEPARTMENTS : STANDARD_DEPARTMENTS).map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">Current Level</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['ND1', 'ND2'].map(l => (
+                      <div className={`grid gap-2 ${isPolytechnic(formData.school) ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                        {(isPolytechnic(formData.school) ? POLYTECHNIC_LEVELS : UNIVERSITY_LEVELS).map(l => (
                           <button
                             key={l}
                             type="button"
                             onClick={() => setFormData({ ...formData, level: l })}
                             className={`py-2.5 rounded-xl border text-[11px] font-black transition-all ${formData.level === l ? 'bg-[#14333c] text-white border-[#14333c] shadow-lg' : 'bg-surface dark:bg-white/5 border-border dark:border-white/10 text-text hover:border-[#14333c]/50'}`}
                           >
-                            {l === 'ND1' ? 'ND 1' : l === 'ND2' ? 'ND 2' : l}
+                            {l}
                           </button>
                         ))}
                       </div>
