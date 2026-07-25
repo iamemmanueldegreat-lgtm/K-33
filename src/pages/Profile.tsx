@@ -18,9 +18,9 @@ export default function Profile() {
   const navigate = useNavigate();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const { isInstalled, installable, isIPhone, triggerInstall } = usePWA();
-  const [showInstructions, setShowInstructions] = useState(false);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,7 +71,7 @@ export default function Profile() {
   ];
 
   const settingsItems = [
-    {
+    ...(!isIPhone ? [{
       icon: <Smartphone size={18} />,
       label: isInstalled ? 'App Installed' : 'Install App',
       color: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400',
@@ -81,13 +81,13 @@ export default function Profile() {
           const ok = await triggerInstall();
           if (ok) toast.success('Thank you for installing Kortex AI!');
         } else {
-          setShowInstructions(true);
+          toast.success('App installation initiated! Try your Chrome/browser settings for "Install App" if the prompt is blocked.');
         }
       },
       trailing: isInstalled
         ? <CheckCircle2 size={16} className="text-emerald-500" />
         : undefined,
-    },
+    }] : []),
     {
       icon: <ExternalLink size={18} />,
       label: 'Help & Support',
@@ -97,10 +97,10 @@ export default function Profile() {
   ];
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-[#0e0e12] pb-28">
+    <div className="min-h-screen bg-neutral-50 dark:bg-[#0e0e12] pb-28 max-w-2xl mx-auto w-full">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 pt-14 pb-5">
+      <div className="flex items-center justify-between px-4 sm:px-6 pt-14 pb-5">
         <button
           onClick={() => navigate('/')}
           className="w-12 h-12 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 flex items-center justify-center shadow-sm active:scale-90 hover:scale-[1.03] transition-all"
@@ -118,7 +118,7 @@ export default function Profile() {
       </div>
 
       {/* Avatar + Name */}
-      <div className="flex flex-col items-center pt-3 pb-8 px-3">
+      <div className="flex flex-col items-center pt-3 pb-8 px-4 sm:px-6">
         <div className="relative group mb-4">
           <button
             onClick={() => avatarInputRef.current?.click()}
@@ -163,69 +163,73 @@ export default function Profile() {
         )}
       </div>
 
-      <div className="px-3 space-y-6 max-w-lg mx-auto">
+      <div className="px-4 sm:px-6 space-y-6 w-full mx-auto">
 
-        {/* Admin Panel */}
-        {user?.is_admin && (
+        {/* Portals & Premium Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Admin Panel */}
+          {user?.is_admin && (
+            <motion.button
+              onClick={() => navigate('/admin')}
+              whileTap={{ scale: 0.98 }}
+              className="flex flex-col items-start gap-4 w-full bg-gradient-to-br from-zinc-900 to-zinc-800 text-white rounded-[24px] p-5 border border-amber-500/20 shadow-sm text-left active:scale-[0.99] transition-all overflow-hidden relative"
+            >
+              <div className="w-10 h-10 rounded-full bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/25">
+                <Shield size={18} fill="currentColor" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400/80 mb-0.5">Workspace</p>
+                <p className="text-[15px] font-bold text-white leading-tight">Admin Portal</p>
+              </div>
+            </motion.button>
+          )}
+
+          {/* Rep Portal */}
+          {user?.is_rep && (
+            <motion.button
+              onClick={() => navigate('/rep')}
+              whileTap={{ scale: 0.98 }}
+              className="flex flex-col items-start gap-4 w-full bg-gradient-to-br from-[#1A1A1D] to-[#2D2D34] dark:from-zinc-900 dark:to-zinc-800 text-white rounded-[24px] p-5 border border-[#40404A] dark:border-zinc-700 shadow-sm text-left active:scale-[0.99] transition-all overflow-hidden relative"
+            >
+              <div className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/5">
+                <Wallet size={18} fill="currentColor" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-0.5">Earnings</p>
+                <p className="text-[15px] font-bold text-white leading-tight">Rep Portal</p>
+              </div>
+            </motion.button>
+          )}
+
+          {/* Premium / Upgrade Banner */}
           <motion.button
-            onClick={() => navigate('/admin')}
             whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-4 w-full bg-gradient-to-r from-zinc-900 to-zinc-800 text-white rounded-[24px] p-4.5 border border-amber-500/20 shadow-sm text-left active:scale-[0.99] transition-all"
+            onClick={() => navigate('/billing')}
+            className={`flex flex-col items-start gap-4 w-full rounded-[24px] p-5 shadow-sm text-left active:scale-[0.99] transition-all border overflow-hidden relative ${
+              user?.is_admin || user?.is_rep ? 'col-span-1' : 'col-span-2 flex-row items-center !px-6 !py-5'
+            } bg-gradient-to-br from-primary to-primary/90 border-primary/20 text-white`}
           >
-            <div className="w-11 h-11 rounded-full bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/25">
-              <Shield size={18} fill="currentColor" />
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/10">
+              <Crown size={18} className="text-white" fill="currentColor" />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Admin Workspace</p>
-              <p className="text-[15px] font-bold text-white truncate">Internal Admin Panel</p>
+            <div className={`${(user?.is_admin || user?.is_rep) ? '' : 'flex-1 ml-1'}`}>
+              <p className={`text-[10px] font-black uppercase tracking-widest text-white/70 mb-0.5`}>Subscription</p>
+              <p className="text-[15px] font-bold text-white leading-tight">
+                {user?.is_pro ? 'Premium Active 👑' : 'Upgrade to Pro'}
+              </p>
+              {!(user?.is_admin || user?.is_rep) && (
+                <p className="text-[11px] opacity-80 mt-1 leading-tight font-medium max-w-[240px]">
+                  {user?.is_pro
+                    ? 'Your premium access is active.'
+                    : 'Unlock AI tutor & smart features.'}
+                </p>
+              )}
             </div>
-            <ChevronRight size={18} className="text-amber-400 shrink-0" />
+            {!(user?.is_admin || user?.is_rep) && (
+               <ChevronRight size={20} className="text-white/60 ml-auto" />
+            )}
           </motion.button>
-        )}
-
-        {/* Rep Portal */}
-        {user?.is_rep && (
-          <motion.button
-            onClick={() => navigate('/rep')}
-            whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-4 w-full bg-white dark:bg-zinc-900 rounded-[24px] p-4.5 border border-blue-500/20 shadow-sm text-left active:scale-[0.99] transition-all"
-          >
-            <div className="w-11 h-11 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0 border border-blue-500/20">
-              <Wallet size={18} fill="currentColor" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">Earnings & Referrals</p>
-              <p className="text-[15px] font-bold text-zinc-900 dark:text-white truncate">Rep Portal</p>
-            </div>
-            <ChevronRight size={18} className="text-zinc-400 shrink-0" />
-          </motion.button>
-        )}
-
-        {/* Premium / Upgrade Banner */}
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          onClick={() => navigate('/billing')}
-          className={`w-full flex items-center gap-4 rounded-[24px] p-4.5 shadow-sm text-left active:scale-[0.99] transition-all border ${
-            user?.is_pro
-              ? 'bg-gradient-to-r from-violet-600 to-purple-600 border-violet-500/20 text-white'
-              : 'bg-gradient-to-r from-primary to-primary/80 border-primary/20 text-white'
-          }`}
-        >
-          <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/10">
-            <Crown size={18} className="text-white" fill="currentColor" />
-          </div>
-          <div className="flex-1">
-            <p className="text-[15px] font-black">
-              {user?.is_pro ? 'Premium Active 👑' : 'Upgrade to Pro'}
-            </p>
-            <p className="text-[11px] opacity-80 mt-0.5 leading-tight font-medium">
-              {user?.is_pro
-                ? 'Your semester/monthly premium pass is fully active'
-                : 'Unlock Kortex AI tutor, mock files & smart summaries'}
-            </p>
-          </div>
-          <ChevronRight size={18} className="text-white/80 shrink-0" />
-        </motion.button>
+        </div>
 
         {/* Account Settings Section */}
         <div>
@@ -299,7 +303,7 @@ export default function Profile() {
 
             {/* Sign Out */}
             <button
-              onClick={signOut}
+              onClick={() => setShowLogoutConfirm(true)}
               className="w-full h-16 flex items-center justify-between px-4 bg-white dark:bg-zinc-900/40 border border-red-200/80 dark:border-red-900/30 rounded-[20px] shadow-sm hover:bg-red-50/50 dark:hover:bg-red-950/10 active:scale-[0.99] transition-all text-left"
             >
               <div className="flex items-center gap-3.5">
@@ -318,87 +322,81 @@ export default function Profile() {
         </p>
       </div>
 
-      {/* iOS / Browser Install Instructions Modal */}
+
+
+      {/* Logout Confirmation Modal */}
       <AnimatePresence>
-        {showInstructions && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        {showLogoutConfirm && (
+          <div className="fixed inset-0 z-[9999] flex items-end justify-center">
+            {/* Backdrop */}
+            <motion.div 
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLogoutConfirm(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-[2px] cursor-pointer"
+            />
+            
+            {/* Sheet Body */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white dark:bg-[#121218] border border-border dark:border-white/10 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative text-text"
+              key="sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 350 }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 300 }}
+              dragElastic={0.15}
+              onDragEnd={(e, info) => {
+                if (info.offset.y > 80) {
+                  setShowLogoutConfirm(false);
+                }
+              }}
+              className="relative w-full bg-white dark:bg-[#121218] border-t border-zinc-200/80 dark:border-white/10 rounded-t-[32px] p-6 text-text pb-12 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] z-10 touch-none"
             >
-              <button
-                onClick={() => setShowInstructions(false)}
-                className="absolute top-4 right-4 p-2 text-muted hover:text-text rounded-full hover:bg-neutral-100 dark:hover:bg-white/5 active:scale-90 transition-all"
-              >
-                <X size={18} />
-              </button>
+              {/* pull handle for mobile sheet vibe */}
+              <div className="w-12 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-5"></div>
 
-              <div className="flex flex-col items-center text-center mt-2 mb-6">
-                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 rounded-2xl flex items-center justify-center mb-3">
-                  <Smartphone size={24} />
-                </div>
-                <h4 className="text-lg font-bold tracking-tight">
-                  {isIPhone ? 'Install on iOS Safari' : 'Installation Guide'}
+              {/* Titlebar Row */}
+              <div className="relative w-full flex items-center justify-center pb-4 border-b border-zinc-100 dark:border-zinc-800/60 mb-6">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="absolute left-0 p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-850 text-zinc-500 dark:text-zinc-400 cursor-pointer transition-colors"
+                >
+                  <X size={20} className="stroke-[2.5]" />
+                </button>
+                <span className="font-extrabold text-lg text-red-500">Logout</span>
+              </div>
+
+              {/* Centered Content */}
+              <div className="flex flex-col items-center text-center">
+                <h4 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white leading-tight mb-2">
+                  Are you sure want to Logout?
                 </h4>
-                <p className="text-xs text-muted mt-1 leading-relaxed">
-                  Add Kortex AI to your Home Screen for a native experience.
+                <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">
+                  Thank you and see you again! ❤️
                 </p>
-              </div>
 
-              <div className="space-y-4">
-                {isIPhone ? (
-                  <>
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">1</div>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
-                        Tap the <strong className="text-primary inline-flex items-center gap-0.5"><Share size={12} className="inline" /> Share</strong> button in Safari's bottom toolbar.
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">2</div>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
-                        Scroll down and tap <strong className="text-primary inline-flex items-center gap-0.5"><Plus size={12} className="inline" /> Add to Home Screen</strong>.
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">3</div>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
-                        Tap <strong className="text-primary">Add</strong> in the top right to confirm.
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">1</div>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
-                        Open your browser settings menu (the three dots <strong className="text-primary font-mono font-black">⋮</strong>).
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">2</div>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
-                        Select <strong className="text-primary">Install Kortex AI</strong> or <strong className="text-primary">Add to Home Screen</strong>.
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0">3</div>
-                      <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-semibold">
-                        Accept the confirmation popup to finish.
-                      </p>
-                    </div>
-                  </>
-                )}
+                {/* Button actions row */}
+                <div className="flex w-full gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoutConfirm(false)}
+                    className="flex-1 py-3.5 text-sm font-bold text-[#10b981] dark:text-[#a3e635] bg-[#ecfdf5] dark:bg-emerald-950/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-full transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="flex-1 py-3.5 text-sm font-bold text-white bg-[#10b981] hover:bg-[#0e9f6e] rounded-full transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
+                  >
+                    Yes, Logout
+                  </button>
+                </div>
               </div>
-
-              <button
-                onClick={() => setShowInstructions(false)}
-                className="w-full mt-6 py-3 bg-primary text-white rounded-2xl text-xs font-bold uppercase tracking-wider hover:opacity-95 active:scale-[0.98] transition-all"
-              >
-                Got it, thanks!
-              </button>
             </motion.div>
           </div>
         )}

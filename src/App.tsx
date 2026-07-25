@@ -68,23 +68,45 @@ export default function App() {
           profile.is_admin = false;
         }
 
-        // Streak logic
         const todayStr = new Date().toISOString().split('T')[0];
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-        let updatedStreak = profile.streak || 0;
         let requiresUpdate = false;
 
+        // Track last login date (for display / last-seen purposes)
         if (profile.last_login_date !== todayStr) {
-          if (profile.last_login_date === yesterdayStr) {
-            updatedStreak += 1;
-          } else {
-            updatedStreak = 1; // missed a day, reset. Or 1 since today is first day back
-          }
-          profile.streak = updatedStreak;
           profile.last_login_date = todayStr;
+          requiresUpdate = true;
+        }
+
+        // Activity-based streak: consecutive days with real study activity
+        // A day counts if the student answered a quiz OR started/finished reading a topic
+        const statsData = profile.academic_stats_by_date || {};
+        const hasStudyActivity = (ds: string) => {
+          const s = statsData[ds];
+          return !!s && ((s.answered ?? 0) > 0 || (s.finished_reading ?? 0) > 0 || (s.started_reading ?? 0) > 0);
+        };
+
+        let computedStreak = 0;
+        const cur = new Date();
+        if (hasStudyActivity(todayStr)) {
+          computedStreak = 1;
+          cur.setDate(cur.getDate() - 1);
+        } else {
+          cur.setDate(cur.getDate() - 1);
+        }
+        // Walk backwards through consecutive active days (cap at 365 for safety)
+        for (let limit = 0; limit < 365; limit++) {
+          const ds = cur.toISOString().split('T')[0];
+          if (hasStudyActivity(ds)) {
+            computedStreak++;
+            cur.setDate(cur.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+
+        const updatedStreak = computedStreak;
+        if (computedStreak !== (profile.streak || 0)) {
+          profile.streak = computedStreak;
           requiresUpdate = true;
         }
 
@@ -111,9 +133,16 @@ export default function App() {
           requiresUpdate = true;
         }
 
+        const updatedCredits = { ...(profile.ai_credits_used || {}) };
+        if (updatedCredits[todayStr] === undefined) {
+          updatedCredits[todayStr] = 0;
+          requiresUpdate = true;
+        }
+
         profile.active_days = updatedActiveDays;
         profile.study_hours_by_date = updatedStudyHours;
         profile.academic_stats_by_date = updatedAcademicStats;
+        profile.ai_credits_used = updatedCredits;
 
         setUser(profile);
         setDataLoaded(true);
@@ -125,7 +154,8 @@ export default function App() {
               last_login_date: todayStr,
               active_days: updatedActiveDays,
               study_hours_by_date: updatedStudyHours,
-              academic_stats_by_date: updatedAcademicStats
+              academic_stats_by_date: updatedAcademicStats,
+              ai_credits_used: updatedCredits
             });
           } catch (e) {
             console.error("Failed to update streak and analytics profile data:", e);

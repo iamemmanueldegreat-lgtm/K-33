@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, Target, Play, RotateCcw, CheckCircle2, XCircle, BrainCircuit, Sparkles, AlertCircle, ChevronRight, Coins, HelpCircle, ArrowRight, Hourglass, X, Star, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
+import { canUnlockTopic, unlockTopic } from '../lib/credits';
+import { toast } from 'react-hot-toast';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -82,12 +84,13 @@ interface PracticeQuizProps {
   courseTitle: string;
   courseCode: string;
   topicTitle: string;
+  topicId?: string;
   preGeneratedQuestions?: any[];
   chapter?: string;
   onCancel?: () => void;
 }
 
-export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preGeneratedQuestions, chapter, onCancel }: PracticeQuizProps) {
+export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, topicId, preGeneratedQuestions, chapter, onCancel }: PracticeQuizProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -217,6 +220,14 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
 
     // Otherwise, generate 10 dynamic LLM active recall questions online
     try {
+      if (!canUnlockTopic(user, topicId ?? topicTitle)) {
+        toast.error('Free topic limit reached. Upgrade to Pro to unlock unlimited quizzes.', { duration: 4000 });
+        setSessionState('SETUP');
+        navigate('/billing');
+        return;
+      }
+      if (user?.id) unlockTopic(user.id, topicId ?? topicTitle).catch(console.error);
+
       const res = await fetch("/api/generate-quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -435,8 +446,8 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
   if (sessionState === 'QUIZ' && questions.length > 0) {
     const currentQuestion = questions[currentIdx];
     const { options, correctIndex, calculatedAnswer } = currentQuestion;
-    if (options[correctIndex] !== calculatedAnswer) {
-      throw new Error("Correct answer does not match correctIndex");
+    if (options && correctIndex !== undefined && calculatedAnswer !== undefined && options[correctIndex] !== calculatedAnswer) {
+      console.warn("Quiz answer index mismatch — continuing safely.");
     }
   }
 
@@ -447,7 +458,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
       {sessionState === 'SETUP' && (
         <div className="w-full max-w-2xl px-2">
           {/* Static Preview Card below sheet if user closes it */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-[24px] p-6 text-center space-y-4 shadow-sm">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[24px] p-6 text-center space-y-4 shadow-sm">
             <div className="w-14 h-14 rounded-full bg-[#14333c]/10 dark:bg-[#14333c]/35 text-[#14333c] dark:text-teal-400 mx-auto flex items-center justify-center">
               <BrainCircuit size={28} className="animate-pulse" />
             </div>
@@ -493,9 +504,9 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                       setShowOverviewSheet(false);
                       onCancel?.();
                     }}
-                    className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-850 dark:text-zinc-100 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
+                    className="absolute top-5 right-5 w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 flex items-center justify-center text-zinc-900 dark:text-zinc-100 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
                   >
-                    <X size={20} className="stroke-[2.5]" />
+                    <X size={20} className="stroke-[3]" />
                   </button>
 
                   {/* Concentric Rainbow Arch Banner Graphic Frame (Mimicking Image 1 Left) */}
@@ -523,7 +534,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                     <p className="text-xs font-bold text-zinc-400 tracking-wider">
                       10 Question
                     </p>
-                    <div className="pt-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-600 dark:text-zinc-350">
+                    <div className="pt-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
                       <span>Total Score:</span>
                       <span className="inline-flex items-center gap-1 bg-[#14333c]/10 dark:bg-[#14333c]/35 text-[#14333c] dark:text-teal-400 px-3 py-1 rounded-full text-xs font-black">
                         <Star size={12} className="fill-[#14333c] dark:fill-teal-400 text-[#14333c] dark:text-teal-400 animate-pulse" />
@@ -574,7 +585,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
 
       {/* ACTIVE QUIZ VIEW STATE (FULL-SCREEN EXPERIENCE - Recreating Image 2 exactly) */}
       {sessionState === 'QUIZ' && questions.length > 0 && (
-         <div className="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex flex-col justify-between w-screen h-screen overflow-hidden">
+         <div className="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex flex-col justify-between w-full h-[100dvh] overflow-hidden">
            
            {/* UPPER SECTION: White / Light Gray Workspace spanning top screen - Compacted to go up more */}
            <div className="w-full flex-none flex flex-col bg-white dark:bg-zinc-950 pt-5 pb-3 px-5 sm:px-8 items-center border-b border-zinc-50 dark:border-zinc-900/40">
@@ -592,9 +603,9 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
                      onCancel?.();
                    }}
                    title="Exit exam"
-                   className="p-2.5 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-10 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
+                   className="p-2.5 rounded-full bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 transition-colors z-40 cursor-pointer shadow-md transform hover:scale-105 active:scale-95"
                  >
-                   <X size={20} />
+                   <X size={20} className="stroke-[3]" />
                  </button>
                </div>
 
@@ -630,7 +641,7 @@ export default function PracticeQuiz({ courseTitle, courseCode, topicTitle, preG
            </div>
 
            {/* LOWER SECTION: Royal Purple/Indigo rounded drawer filling bottom screen. Covering more than half of the screen. */}
-           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 pb-5 sm:px-12 sm:pt-6 sm:pb-6 flex flex-col justify-between w-full shadow-2xl z-20 flex-1 min-h-0 overflow-hidden">
+           <div className="bg-[#14333c] rounded-t-[44px] px-6 pt-5 pb-[env(safe-area-inset-bottom,20px)] sm:px-12 sm:pt-6 flex flex-col justify-between w-full shadow-2xl z-20 flex-1 min-h-0 overflow-hidden">
              <div className="max-w-xl mx-auto w-full flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
                
                {/* Centered label */}

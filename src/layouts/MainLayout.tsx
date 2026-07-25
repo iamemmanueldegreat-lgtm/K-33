@@ -6,7 +6,6 @@ import { twMerge } from 'tailwind-merge';
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
-import PWAPromptBanner from '../components/PWAPromptBanner';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -27,12 +26,15 @@ export default function MainLayout() {
   }, [location.pathname, location.search]);
 
   const isChatPage = location.pathname === '/chat';
-  const isProfilePage = location.pathname === '/profile';
   const isCoursePage = location.pathname.startsWith('/course/');
   const isBillingPage = location.pathname === '/billing';
+  const isRepPage = location.pathname.startsWith('/rep');
   
-  // Hide bottom tab bar on AI Chat and Billing/Premium pages
-  const hideTabBar = isChatPage || isBillingPage;
+  const fullScreenRoutes = ['/profile', '/edit-profile', '/academic-profile', '/notifications', '/rep', '/admin'];
+  const isFullScreenPage = fullScreenRoutes.includes(location.pathname) || isChatPage || isCoursePage || isBillingPage;
+  
+  // Hide bottom tab bar on Billing/Premium, AI Chat, and Representative Portal pages
+  const hideTabBar = isBillingPage || isChatPage || isRepPage;
   const navigate = useNavigate();
 
   // Define active tabs sections dynamically to support active states for nested routes
@@ -63,13 +65,11 @@ export default function MainLayout() {
       !hideTabBar && "pb-20",
       (isChatPage || isCoursePage) && "h-[100dvh] overflow-hidden !pb-0" // override to prevent main page scroll
     )}>
-      {/* Dynamic PWA installation reminder banner */}
-      <PWAPromptBanner />
-
       <main className={cn(
         "flex-1 flex flex-col w-full min-h-0",
-        (!isChatPage && !isProfilePage && !isCoursePage && !isBillingPage) ? "p-4 sm:p-6 xl:p-8" : "p-0",
-        (isChatPage || isCoursePage) && "h-full overflow-hidden"
+        !isFullScreenPage ? "p-4 sm:p-6 xl:p-8" : "p-0",
+        !isFullScreenPage && "max-w-4xl mx-auto",
+        (isChatPage || isCoursePage) && "h-full overflow-hidden !max-w-none"
       )}>
         <AnimatePresence mode="wait">
           <motion.div

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { canSendChat, spendChatCredit } from '../lib/credits';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { 
   Send, 
@@ -350,6 +352,13 @@ export default function Chat() {
     if (e) e.preventDefault();
     if (!input.trim() || isTyping) return;
 
+    if (!canSendChat(user)) {
+      toast.error('You\'ve used all 10 free chat messages. Upgrade to Pro to keep chatting.', { duration: 4000 });
+      navigate('/billing');
+      return;
+    }
+    if (user?.id) spendChatCredit(user.id).catch(console.error);
+
     const userMessage: Message = { role: 'user', parts: [{ text: input.trim() }] };
     const historyBeforeResponse = [...messages, userMessage];
     
@@ -505,13 +514,13 @@ export default function Chat() {
                     sessions.map((session) => (
                       <div 
                         key={session.id}
-                        className={`group relative flex items-center justify-between rounded-2xl hover:bg-white dark:hover:bg-white/5 hover:shadow-sm border border-transparent hover:border-black/5 dark:hover:border-white/5 transition-all ${
-                          currentSessionId === session.id ? 'bg-white dark:bg-white/5 shadow-sm border-black/5 dark:border-white/5' : ''
+                        className={`group relative flex items-center justify-between rounded-[20px] bg-white dark:bg-[#202020] shadow-sm border border-zinc-200/80 dark:border-zinc-800/80 hover:shadow-md transition-all mb-2 ${
+                          currentSessionId === session.id ? 'ring-2 ring-primary/20 bg-zinc-50 dark:bg-[#2A2A2A] border-primary/30 dark:border-primary/30' : ''
                         }`}
                       >
                         <button 
                           onClick={() => loadSession(session)} 
-                          className="flex-1 flex items-center gap-3 text-left truncate pl-4 pr-12 py-3 text-sm text-text/90 cursor-pointer"
+                          className="flex-1 flex items-center gap-3 text-left truncate pl-4 pr-12 py-3.5 text-sm font-medium text-text/90 cursor-pointer"
                         >
                           <MessageSquare size={16} className="text-zinc-400 flex-shrink-0" />
                           <span className="truncate">{session.title}</span>
@@ -586,7 +595,8 @@ export default function Chat() {
       </header>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 w-full space-y-6 pt-4 pb-32">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 w-full space-y-6 pt-4 pb-32 flex flex-col items-center">
+      <div className="w-full max-w-3xl flex flex-col gap-6">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6">
              <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 dark:text-neutral-50 tracking-tight font-sans">How can I help you today?</h2>
@@ -642,9 +652,10 @@ export default function Chat() {
         )}
         <div ref={messagesEndRef} className="h-6" />
       </div>
+      </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 p-1.5 pb-2 sm:p-2 sm:pb-3 bg-gradient-to-t from-background via-background to-transparent pt-12 pointer-events-none">
+      <div className="absolute bottom-0 left-0 right-0 p-3 pb-6 sm:p-4 sm:pb-8 bg-gradient-to-t from-background from-50% via-background/90 to-transparent pt-12 pointer-events-none">
         
         {messages.length === 0 && (
           <div className="w-full px-4 sm:px-6 mb-3 pointer-events-auto overflow-x-auto sm:overflow-x-visible pb-2 sm:pb-0 scrollbar-none whitespace-nowrap flex sm:flex-wrap gap-2 justify-start sm:justify-center">

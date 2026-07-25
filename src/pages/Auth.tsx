@@ -5,21 +5,39 @@ import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { EDO_STATE_SCHOOLS, AUCHI_POLY_DEPARTMENTS, NIGERIAN_SCHOOLS, STANDARD_DEPARTMENTS } from '../lib/constants';
+import { NIGERIAN_SCHOOLS, NIGERIAN_STATES, STANDARD_DEPARTMENTS, POLYTECHNIC_DEPARTMENTS, UNIVERSITY_LEVELS, POLYTECHNIC_LEVELS, isPolytechnic } from '../lib/constants';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-// For testing purposes, we limit to Edo State & Auchi Polytechnic under ND1/ND2 Computer Science
-const NIGERIAN_STATES = ["Edo"];
-const REGISTER_SCHOOLS: Record<string, string[]> = {
-  'Edo': ['Auchi Polytechnic']
-};
+function getAuthErrorMessage(error: any): string {
+  switch (error?.code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+      return 'Incorrect email or password. Please try again.';
+    case 'auth/user-not-found':
+      return 'No account found with that email address.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please wait a moment and try again.';
+    case 'auth/email-already-in-use':
+      return 'An account already exists with this email address.';
+    case 'auth/weak-password':
+      return 'Your password must be at least 6 characters.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection and try again.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}
 
 export default function Auth() {
   const { refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(() => !!localStorage.getItem('kortex_returning_user'));
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -31,10 +49,10 @@ export default function Auth() {
     password: '',
     firstName: '',
     lastName: '',
-    state: 'Edo',
-    school: 'Auchi Polytechnic',
-    department: 'Computer Science',
-    level: 'ND1'
+    state: '',
+    school: '',
+    department: '',
+    level: ''
   });
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -48,11 +66,20 @@ export default function Auth() {
         toast.error("Passwords do not match!");
         return;
       }
+      if (!formData.department) {
+        toast.error("Please select your department");
+        return;
+      }
+      if (!formData.level) {
+        toast.error("Please select your current level");
+        return;
+      }
     }
     setLoading(true);
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        localStorage.setItem('kortex_returning_user', '1');
         toast.success("Welcome back!");
         await refreshProfile();
       } else {
@@ -80,7 +107,7 @@ export default function Auth() {
         toast.success("Account created successfully!");
       }
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -134,17 +161,20 @@ export default function Auth() {
     <div className="min-h-[100dvh] bg-background md:bg-[#F3F4F6] flex justify-center items-center font-sans overflow-hidden">
       <div className="w-full h-[100dvh] md:h-[85vh] md:max-h-[850px] md:max-w-[400px] md:rounded-[40px] shadow-[0_20px_60px_rgba(0,0,0,0.1)] flex flex-col bg-[#14333c] relative overflow-hidden">
         
-        {/* Subtle grid background for the top section */}
-        <div 
-          className="absolute inset-0 opacity-[0.07] pointer-events-none" 
-          style={{ 
-            backgroundImage: `linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)`, 
-            backgroundSize: '40px 40px' 
-          }}
-        />
+        {/* Elegant rounded-corner tile grid background inspired by the design */}
+        <div className="absolute top-[-2%] left-[-2%] right-[-2%] h-[44%] overflow-hidden pointer-events-none z-0">
+          <div className="grid grid-cols-4 gap-3.5 p-6">
+            {Array.from({ length: 16 }).map((_, i) => (
+              <div 
+                key={i} 
+                className="aspect-square rounded-[22px] border border-white/[0.07] bg-gradient-to-br from-white/[0.02] to-transparent shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.035)]"
+              />
+            ))}
+          </div>
+        </div>
 
-        {/* Header Section (Dark Phase) */}
-        <div className="px-6 pt-14 pb-20 flex flex-col z-0 transition-all duration-500 text-white relative">
+        {/* Header Section (Dark Phase) — compact on small viewports */}
+        <div className="px-6 pt-5 sm:pt-8 pb-6 sm:pb-14 flex flex-col z-0 transition-all duration-500 text-white relative">
           <button 
             onClick={() => {
               if (!isLogin && step > 1) {
@@ -153,9 +183,9 @@ export default function Auth() {
                 navigate(-1);
               }
             }}
-            className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-2xl flex items-center justify-center mb-8 border border-white/10 transition-colors backdrop-blur-sm"
+            className="w-11 h-11 bg-white/[0.04] border border-white/10 rounded-[16px] flex items-center justify-center mb-4 sm:mb-8 transition-colors hover:bg-white/[0.08]"
           >
-            <ArrowLeft size={20} className="text-white" />
+            <ArrowLeft size={18} className="text-white/90" />
           </button>
           
           <AnimatePresence mode="wait">
@@ -164,11 +194,11 @@ export default function Auth() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-3"
+              className="space-y-2 sm:space-y-3"
             >
-              <h1 className="text-[32px] font-semibold leading-[1.15] tracking-tight">
+              <h1 className="text-[22px] sm:text-[28px] font-semibold leading-[1.18] tracking-tight">
                 {isLogin 
-                  ? "Log in to access your personal account" 
+                  ? "Go ahead and complete your account and setup" 
                   : step === 1 
                     ? "Sign up now to access your personal account"
                     : step === 2
@@ -176,9 +206,9 @@ export default function Auth() {
                       : "Finalizing your academic profile"
                 }
               </h1>
-              <p className="text-white/70 text-[15px] font-medium leading-snug">
+              <p className="text-white/60 text-[13px] sm:text-[15px] font-medium leading-snug">
                 {isLogin 
-                  ? "Sign in to continue your learning journey and access your dashboard."
+                  ? "Create your account and simplify your workflow instantly."
                   : step === 1 
                     ? "Sign up to access your account and exclusive features."
                     : step === 2
@@ -191,10 +221,10 @@ export default function Auth() {
         </div>
 
         {/* Form Section (Theme-Aware) */}
-        <div className="flex-1 bg-background dark:bg-card rounded-t-[36px] px-6 pt-8 pb-10 flex flex-col z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] relative overflow-y-auto custom-scrollbar border-t border-white/10">
+        <div className="flex-1 bg-background dark:bg-card rounded-t-[36px] px-6 pt-5 sm:pt-8 pb-8 flex flex-col z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] relative overflow-y-auto custom-scrollbar border-t border-white/10">
           
           {/* Toggle Switch */}
-          <div className="bg-muted/10 dark:bg-white/5 rounded-2xl p-1.5 flex mb-8 border border-border/50">
+          <div className="bg-muted/10 dark:bg-white/5 rounded-2xl p-1.5 flex mb-5 sm:mb-8 border border-border/50">
             <button 
               type="button"
               onClick={() => { setIsLogin(true); setStep(1); setConfirmPassword(''); }}
@@ -271,28 +301,12 @@ export default function Auth() {
                   ) : "Enter Dashboard"}
                 </button>
 
-                <div className="flex items-center gap-4 mt-6 mb-2">
-                  <div className="h-px flex-1 bg-border/60"></div>
-                  <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">Or login with</span>
-                  <div className="h-px flex-1 bg-border/60"></div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pb-2">
-                  <button type="button" className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-border bg-surface hover:bg-border/30 transition-colors shadow-sm">
-                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
-                    <span className="text-[14px] font-semibold text-text">Google</span>
-                  </button>
-                  <button type="button" className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-border bg-surface hover:bg-border/30 transition-colors shadow-sm">
-                    <img src="https://www.svgrepo.com/show/475647/facebook-color.svg" alt="Facebook" className="w-5 h-5" />
-                    <span className="text-[14px] font-semibold text-text">Facebook</span>
-                  </button>
-                </div>
               </motion.div>
             ) : (
               <div className="flex-1 flex flex-col">
                 {step === 1 && (
                   <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 flex-1 flex flex-col">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">First Name</label>
                         <input
@@ -316,7 +330,7 @@ export default function Auth() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
                         <input
@@ -387,33 +401,33 @@ export default function Auth() {
                         className="w-full bg-surface dark:bg-white/5 border border-border dark:border-white/10 rounded-2xl px-4 py-4 text-[14px] font-semibold text-text outline-none focus:border-[#14333c] focus:ring-4 focus:ring-[#14333c]/10 transition-all appearance-none"
                         style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%230D4C50' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right .75rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em` }}
                         value={formData.state}
-                        onChange={e => setFormData({ ...formData, state: e.target.value })}
+                        onChange={e => setFormData({ ...formData, state: e.target.value, school: '', department: '', level: '' })}
                       >
-                        <option value="">Select State</option>
+                        <option value="">Select your state</option>
                         {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">Institution Name</label>
-                      {REGISTER_SCHOOLS[formData.state] ? (
+                      {NIGERIAN_SCHOOLS[formData.state]?.length ? (
                         <select
                           required
                           className="w-full bg-surface dark:bg-white/5 border border-border dark:border-white/10 rounded-2xl px-4 py-4 text-[14px] font-semibold text-text outline-none focus:border-[#14333c] focus:ring-4 focus:ring-[#14333c]/10 transition-all appearance-none"
                           style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%230D4C50' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right .75rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em` }}
                           value={formData.school}
-                          onChange={e => setFormData({ ...formData, school: e.target.value })}
+                          onChange={e => setFormData({ ...formData, school: e.target.value, department: '', level: '' })}
                         >
                           <option value="" disabled>Select your institution</option>
-                          {REGISTER_SCHOOLS[formData.state].map(s => <option key={s} value={s}>{s}</option>)}
+                          {NIGERIAN_SCHOOLS[formData.state].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       ) : (
                         <input
                           type="text"
                           required
                           className="w-full bg-surface dark:bg-white/5 border border-border dark:border-white/10 rounded-2xl px-4 py-4 text-[14px] font-semibold text-text outline-none focus:border-[#14333c] focus:ring-4 focus:ring-[#14333c]/10 transition-all"
-                          placeholder="e.g. UNILAG, UI"
+                          placeholder="Type your institution name"
                           value={formData.school}
-                          onChange={e => setFormData({ ...formData, school: e.target.value })}
+                          onChange={e => setFormData({ ...formData, school: e.target.value, department: '', level: '' })}
                         />
                       )}
                     </div>
@@ -435,20 +449,20 @@ export default function Auth() {
                         onChange={e => setFormData({ ...formData, department: e.target.value })}
                       >
                         <option value="" disabled>Select your department</option>
-                        {(formData.school === 'Auchi Polytechnic' ? ['Computer Science'] : STANDARD_DEPARTMENTS).map(d => <option key={d} value={d}>{d}</option>)}
+                        {(isPolytechnic(formData.school) ? POLYTECHNIC_DEPARTMENTS : STANDARD_DEPARTMENTS).map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-black text-[#14333c]/80 dark:text-teal-400 uppercase tracking-widest mb-1.5 ml-1">Current Level</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['ND1', 'ND2'].map(l => (
+                      <div className={`grid gap-2 ${isPolytechnic(formData.school) ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                        {(isPolytechnic(formData.school) ? POLYTECHNIC_LEVELS : UNIVERSITY_LEVELS).map(l => (
                           <button
                             key={l}
                             type="button"
                             onClick={() => setFormData({ ...formData, level: l })}
                             className={`py-2.5 rounded-xl border text-[11px] font-black transition-all ${formData.level === l ? 'bg-[#14333c] text-white border-[#14333c] shadow-lg' : 'bg-surface dark:bg-white/5 border-border dark:border-white/10 text-text hover:border-[#14333c]/50'}`}
                           >
-                            {l === 'ND1' ? 'ND 1' : l === 'ND2' ? 'ND 2' : l}
+                            {l}
                           </button>
                         ))}
                       </div>

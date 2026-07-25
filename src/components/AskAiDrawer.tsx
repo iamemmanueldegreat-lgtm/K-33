@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Sparkles, Brain, ArrowUp, Plus, Mic } from 'lucide-react';
+import { X, Send, Sparkles, Brain, ArrowUp, Plus, Mic, Activity } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
+import { canSendChat, spendChatCredit } from '../lib/credits';
 
 interface AskAiDrawerProps {
   isOpen: boolean;
@@ -26,6 +29,7 @@ export default function AskAiDrawer({
   setMessages
 }: AskAiDrawerProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -99,6 +103,13 @@ What part of this lesson would you like me to explain further? Just ask! 📚`;
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isTyping) return;
+
+    if (!canSendChat(user)) {
+      toast.error('You\'ve used all 10 free questions. Upgrade to Pro to keep asking.', { duration: 4000 });
+      navigate('/billing');
+      return;
+    }
+    if (user?.id) spendChatCredit(user.id).catch(console.error);
 
     const userMessage = { role: 'user' as const, content: input.trim() };
     const historyBeforeResponse = [...messages, userMessage];
@@ -227,7 +238,7 @@ What part of this lesson would you like me to explain further? Just ask! 📚`;
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#1e4854]/30 border border-teal-500/20 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
-                  <img src="/logo.png" alt="Kortex AI" className="w-full h-full object-cover rounded-full" referrerPolicy="no-referrer" />
+                  <Activity size={24} className="text-teal-500" />
                 </div>
                 <div>
                   <h3 className="font-outfit font-black text-lg sm:text-xl leading-none text-[#163038] dark:text-teal-400 tracking-tight">

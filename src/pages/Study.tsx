@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2, WifiOff, CloudDownload, DownloadCloud, Sparkles, Check, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { generateStudyContent } from '../lib/gemini';
+import { canUnlockTopic, unlockTopic } from '../lib/credits';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'react-hot-toast';
@@ -202,6 +203,17 @@ export default function Study() {
               const userLevel = user?.level || "Undergraduate";
               const userDept = user?.department || "";
               const userSchool = user?.school || "";
+
+              if (!canUnlockTopic(user, topicId!)) {
+                if (stepInterval) clearInterval(stepInterval);
+                toast.error('Free topic limit reached. Upgrade to Pro to unlock unlimited topics.', { duration: 4000 });
+                setLoading(false);
+                setGenerationStep('');
+                navigate('/billing');
+                return;
+              }
+              if (user?.id) unlockTopic(user.id, topicId!).catch(console.error);
+
               const studyPackage = await generateStudyContent(topicTitle, courseTitle, userLevel, userDept, userSchool);
               if (stepInterval) clearInterval(stepInterval);
               if (!active) return;
@@ -331,7 +343,7 @@ export default function Study() {
             >
               <p className="text-sm font-semibold tracking-wide text-primary uppercase mb-2 mt-4">{titles.course}</p>
               {/* Title Section */}
-              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-8 leading-[1.1]">{titles.topic}</h1>
+              <h1 className="text-2xl sm:text-3xl xl:text-4xl font-bold tracking-tight mb-6 sm:mb-8 leading-[1.1]">{titles.topic}</h1>
               
               {/* Tabs */}
               <div className="flex items-center gap-2 border-b border-border mb-10 overflow-x-auto custom-scrollbar pb-px">
@@ -379,7 +391,8 @@ export default function Study() {
                        onCancel={() => setActiveTab('Explanation')}
                        courseTitle={titles.course} 
                        courseCode={courseId || ''} 
-                       topicTitle={titles.topic} 
+                       topicTitle={titles.topic}
+                       topicId={topicId}
                        preGeneratedQuestions={quizQuestions}
                        chapter={currentChapter}
                      />
@@ -391,11 +404,11 @@ export default function Study() {
 
         </div>
 
-        {/* Floating Ask AI Button in the bottom right corner */}
+        {/* Floating Ask AI Button — raised above the bottom tab bar (tab bar is fixed bottom-6 h-16) */}
         {!loading && !isGenerating && content && (
           <button
             onClick={() => setIsAskAiOpen(true)}
-            className="fixed right-6 bottom-6 z-40 bg-[#163038] hover:bg-[#163038]/90 text-white dark:bg-white dark:hover:bg-white/95 dark:text-black font-sans font-bold shadow-lg hover:scale-105 active:scale-95 transition-all duration-300 rounded-full py-3.5 px-5.5 flex items-center gap-2.5 group cursor-pointer border border-[#163038]/10 dark:border-white/10"
+            className="fixed right-4 sm:right-6 bottom-24 sm:bottom-[6.5rem] z-40 bg-[#163038] hover:bg-[#163038]/90 text-white dark:bg-white dark:hover:bg-white/95 dark:text-black font-sans font-bold shadow-lg hover:scale-105 active:scale-95 transition-all duration-300 rounded-full py-3 px-5 flex items-center gap-2 group cursor-pointer border border-[#163038]/10 dark:border-white/10"
           >
             <Sparkles size={16} className="animate-pulse group-hover:rotate-12 transition-transform duration-300 text-white dark:text-black" />
             <span className="text-sm tracking-wide">Ask AI</span>

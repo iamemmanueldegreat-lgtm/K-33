@@ -1,28 +1,33 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import OpenAI from "openai";
 import { jsonrepair } from "jsonrepair";
+import rateLimit from "express-rate-limit";
 
 const Type = {
   OBJECT: "object",
-  ARRAY: "array",
   STRING: "string",
-  INTEGER: "integer"
-};
+  ARRAY: "array",
+  INTEGER: "integer",
+  NUMBER: "number",
+  BOOLEAN: "boolean",
+} as const;
 
 // Lazy-loaded DeepSeek Client for full-stack API safety
 let openaiClient: OpenAI | null = null;
 let lastApiKey: string | null = null;
+
 function getGeminiClient(): any {
-  const key = process.env.DEEPSEEK_API_KEY || process.env.GEMINI_API_KEY;
-  if (!key) {
-    throw new Error("DEEPSEEK_API_KEY or GEMINI_API_KEY environment variable is required.");
+  const dsKey = process.env.DEEPSEEK_API_KEY;
+
+  if (!dsKey) {
+    throw new Error("Something went wrong. We couldn't complete your request right now. Please try again in a few moments.");
   }
-  if (!openaiClient || key !== lastApiKey) {
-    lastApiKey = key;
+
+  if (!openaiClient || dsKey !== lastApiKey) {
+    lastApiKey = dsKey;
     openaiClient = new OpenAI({
-      apiKey: key,
+      apiKey: dsKey,
       baseURL: "https://api.deepseek.com/v1"
     });
   }
@@ -484,9 +489,8 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
   return list.slice(0, num);
 }
 
-async function startServer() {
+async function createApp() {
   const app = express();
-  const PORT = 8080;
 
   // Middleware to log requests
   app.use((req, res, next) => {
@@ -508,6 +512,32 @@ async function startServer() {
       return res.status(413).json({ error: "Payload too large" });
     }
     next(err);
+  });
+
+  // Rate limiting — 30 AI requests per minute per IP
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please wait a moment before trying again." }
+  });
+  app.use("/api/generate-course", aiLimiter);
+  app.use("/api/generate-study", aiLimiter);
+  app.use("/api/generate-quiz", aiLimiter);
+  app.use("/api/quiz-explain", aiLimiter);
+  app.use("/api/chat", aiLimiter);
+
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    const dsKey = process.env.DEEPSEEK_API_KEY;
+    const gemKey = process.env.GEMINI_API_KEY;
+    res.json({
+      status: "ok",
+      ai: (dsKey || gemKey) ? "connected" : "missing_key",
+      provider: dsKey ? "deepseek" : gemKey ? "gemini" : "none",
+      timestamp: new Date().toISOString()
+    });
   });
 
   // API Diagnostics Route using Gemini
@@ -558,6 +588,9 @@ async function startServer() {
 
   app.post("/api/generate-course", async (req, res) => {
     const { department } = req.body;
+    if (!department || typeof department !== "string" || !department.trim()) {
+      return res.status(400).json({ error: "department is required" });
+    }
     const prompt = `You are a world-class university curriculum designer. Create ONE highly realistic, comprehensive course for the "${department}" department.
 Include:
 1. school (set as "University Level")
@@ -616,6 +649,9 @@ Include:
 
   app.post("/api/generate-study", async (req, res) => {
     const { topic, course, level, department, school } = req.body;
+    if (!topic || typeof topic !== "string" || !topic.trim()) {
+      return res.status(400).json({ error: "topic is required" });
+    }
     
     const systemPrompt = `You are an expert, patient, and highly detailed university professor. Your job is to teach full curriculum topics to students who rely entirely on you for their education. You must be comprehensive, rigorous, and thorough, leaving no part of the topic unexplained.
 
@@ -890,8 +926,13 @@ Answer the student's question clearly, thoroughly, and encouragingly in 2 to 4 s
       console.error(`Quiz explanation failed:`, error);
       return res.status(500).json({ error: error.message || "Failed to generate explanation." });
     }
-  });  app.post("/api/chat", async (req, res) => {
+  });
+
+  app.post("/api/chat", async (req, res) => {
     const { messages, model, student, topicTitle, courseTitle, studyContext } = req.body;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "messages array is required" });
+    }
     const department = student?.department || "";
     const level = student?.level || "";
     const school = student?.school || "";
@@ -901,6 +942,10 @@ Answer the student's question clearly, thoroughly, and encouragingly in 2 to 4 s
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+
+    // Stop generating if client disconnects — saves API tokens
+    let clientDisconnected = false;
+    req.on("close", () => { clientDisconnected = true; });
 
     try {
       const chatMessages = messages.map((m: any) => ({
@@ -1065,6 +1110,7 @@ When the user asks questions or raises issues, prioritize referencing, explainin
       });
 
       for await (const chunk of responseStream) {
+        if (clientDisconnected) break;
         const text = chunk.text || "";
         if (text) {
           res.write(`data: ${JSON.stringify({ text })}\n\n`);
@@ -1084,6 +1130,7 @@ When the user asks questions or raises issues, prioritize referencing, explainin
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true, allowedHosts: true as any },
       appType: "spa",
@@ -1097,33 +1144,6 @@ When the user asks questions or raises issues, prioritize referencing, explainin
     });
   }
 
-  async function runStartupDiagnostics() {
-    console.log("\n=================== STARTUP DIAGNOSTICS ===================");
-    const dsKey = process.env.DEEPSEEK_API_KEY;
-    const gemKey = process.env.GEMINI_API_KEY;
-    const activeKey = dsKey || gemKey;
-    console.log(`[DIAG] DEEPSEEK_API_KEY: ${dsKey ? "PRESENT (" + dsKey.slice(0, 4) + "..." + dsKey.slice(-4) + ")" : "MISSING"}`);
-    console.log(`[DIAG] GEMINI_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
-    console.log(`[DIAG] Active Key Source: ${dsKey ? "DEEPSEEK_API_KEY" : (gemKey ? "GEMINI_API_KEY (Fallback for DeepSeek)" : "NONE")}`);
-
-    if (activeKey) {
-      try {
-        console.log(`[DIAG] Testing API with deepseek-chat...`);
-        const ai = getGeminiClient();
-        const testRes = await ai.models.generateContent({
-          model: "deepseek-chat",
-          contents: "Say 'DeepSeek OK'",
-        });
-        console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
-      } catch (e: any) {
-        console.error(`[DIAG] DeepSeek connection failure: ${e.message || e}`);
-      }
-    } else {
-      console.log("[DIAG] Warning: Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is defined. AI interactions will fail.");
-    }
-    console.log("===================================================================\n");
-  }
-
   app.use((err: any, req: any, res: any, next: any) => {
     console.error("Express App Error:", err);
     if (!res.headersSent) {
@@ -1131,6 +1151,39 @@ When the user asks questions or raises issues, prioritize referencing, explainin
     }
   });
 
+  return app;
+}
+
+async function runStartupDiagnostics() {
+  console.log("\n=================== STARTUP DIAGNOSTICS ===================");
+  const dsKey = process.env.DEEPSEEK_API_KEY;
+  const gemKey = process.env.GEMINI_API_KEY;
+  const activeKey = dsKey || gemKey;
+  console.log(`[DIAG] DEEPSEEK_API_KEY: ${dsKey ? "PRESENT (" + dsKey.slice(0, 4) + "..." + dsKey.slice(-4) + ")" : "MISSING"}`);
+  console.log(`[DIAG] GEMINI_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
+  console.log(`[DIAG] Active Key Source: ${dsKey ? "DEEPSEEK_API_KEY" : (gemKey ? "GEMINI_API_KEY (Fallback for DeepSeek)" : "NONE")}`);
+
+  if (activeKey) {
+    try {
+      console.log(`[DIAG] Testing API with deepseek-chat...`);
+      const ai = getGeminiClient();
+      const testRes = await ai.models.generateContent({
+        model: "deepseek-chat",
+        contents: "Say 'DeepSeek OK'",
+      });
+      console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
+    } catch (e: any) {
+      console.error(`[DIAG] DeepSeek connection failure: ${e.message || e}`);
+    }
+  } else {
+    console.log("[DIAG] Warning: Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is defined. AI interactions will fail.");
+  }
+  console.log("===================================================================\n");
+}
+
+async function startServer() {
+  const PORT = parseInt(process.env.PORT || "8080", 10);
+  const app = await createApp();
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     runStartupDiagnostics().catch(err => {
@@ -1139,4 +1192,16 @@ When the user asks questions or raises issues, prioritize referencing, explainin
   });
 }
 
-startServer();
+// Vercel serverless export — Vercel calls this instead of app.listen()
+let _vercelApp: any = null;
+export default async (req: any, res: any) => {
+  if (!_vercelApp) {
+    _vercelApp = await createApp();
+  }
+  _vercelApp(req, res);
+};
+
+// Only start the HTTP server in non-Vercel environments
+if (!process.env.VERCEL) {
+  startServer();
+}

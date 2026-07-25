@@ -93,7 +93,7 @@ export default function Home() {
 
 
   return (
-    <div className="space-y-6 pb-6 pt-2">
+    <div className="space-y-6 pb-6 pt-2 max-w-2xl mx-auto w-full">
       
       {/* Header Greeting */}
       <div className="px-1 pt-2 pb-4 flex items-center justify-between">
@@ -140,9 +140,13 @@ export default function Home() {
             const date = new Date();
             date.setDate(date.getDate() - 3 + i);
             const isToday = i === 3;
-            
-            const daysAgo = 3 - i;
-            const isCompleted = daysAgo >= 0 && daysAgo < (user?.streak || 0);
+            const dateStr = date.toISOString().split('T')[0];
+            const dayStats = user?.academic_stats_by_date?.[dateStr];
+            const isCompleted = !!dayStats && (
+              (dayStats.answered ?? 0) > 0 ||
+              (dayStats.finished_reading ?? 0) > 0 ||
+              (dayStats.started_reading ?? 0) > 0
+            );
 
             const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
             const dayDate = date.getDate();
