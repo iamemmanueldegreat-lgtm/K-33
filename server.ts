@@ -62,7 +62,7 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         }
 
         const res = await openaiClient!.chat.completions.create({
-          model: "deepseek-chat",
+          model: "deepseek-v4-pro",
           messages,
           response_format,
         });
@@ -83,7 +83,7 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         }
         
         const stream = await openaiClient!.chat.completions.create({
-          model: "deepseek-chat",
+          model: "deepseek-v4-pro",
           messages,
           stream: true
         });
@@ -559,20 +559,20 @@ async function createApp() {
 
     try {
       if (!gemKey) {
-        results.geminiTests["deepseek-chat"] = { success: false, error: "Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is set" };
+        results.geminiTests["deepseek-v4-pro"] = { success: false, error: "Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is set" };
       } else {
         const ai = getGeminiClient();
         const testRes = await ai.models.generateContent({
-          model: "deepseek-chat",
+          model: "deepseek-v4-pro",
           contents: "Hello, respond with exactly 'OK_TEST'",
         });
-        results.geminiTests["deepseek-chat"] = {
+        results.geminiTests["deepseek-v4-pro"] = {
           success: true,
           response: testRes.text?.trim()
         };
       }
     } catch (err: any) {
-      results.geminiTests["deepseek-chat"] = {
+      results.geminiTests["deepseek-v4-pro"] = {
         success: false,
         error: err.message || err.toString()
       };
@@ -1165,10 +1165,10 @@ async function runStartupDiagnostics() {
 
   if (activeKey) {
     try {
-      console.log(`[DIAG] Testing API with deepseek-chat...`);
+      console.log(`[DIAG] Testing API with deepseek-v4-pro...`);
       const ai = getGeminiClient();
       const testRes = await ai.models.generateContent({
-        model: "deepseek-chat",
+        model: "deepseek-v4-pro",
         contents: "Say 'DeepSeek OK'",
       });
       console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
