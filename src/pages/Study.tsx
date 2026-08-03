@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2, WifiOff, CloudDownload, DownloadCloud, Sparkles, Check, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { generateStudyContent } from '../lib/gemini';
+import { generateStudyContent } from '../lib/api';
 import { canUnlockTopic, unlockTopic } from '../lib/credits';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

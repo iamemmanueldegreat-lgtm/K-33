@@ -13,11 +13,13 @@ const Type = {
   BOOLEAN: "boolean",
 } as const;
 
-// Lazy-loaded DeepSeek Client for full-stack API safety
+// Lazy-loaded DeepSeek client
 let openaiClient: OpenAI | null = null;
 let lastApiKey: string | null = null;
 
-function getGeminiClient(): any {
+const DEEPSEEK_MODEL = "deepseek-chat";
+
+function getDeepSeekClient(): any {
   const dsKey = process.env.DEEPSEEK_API_KEY;
 
   if (!dsKey) {
@@ -34,7 +36,7 @@ function getGeminiClient(): any {
   return {
     models: {
       generateContent: async (args: any) => {
-        let messages = [];
+        let messages: any[] = [];
         let systemInstruction = "";
         
         if (args.config && args.config.systemInstruction) {
@@ -56,13 +58,13 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         }
         messages.push({ role: "user", content: args.contents });
         
-        let response_format;
+        let response_format: any;
         if (args.config && (args.config.responseMimeType === "application/json" || args.config.responseSchema)) {
           response_format = { type: "json_object" };
         }
 
         const res = await openaiClient!.chat.completions.create({
-          model: "deepseek-v4-pro",
+          model: DEEPSEEK_MODEL,
           messages,
           response_format,
         });
@@ -72,7 +74,7 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         };
       },
       generateContentStream: async (args: any) => {
-        let messages = [];
+        let messages: any[] = [];
         if (args.config && args.config.systemInstruction) {
           messages.push({ role: "system", content: args.config.systemInstruction });
         }
@@ -83,7 +85,7 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         }
         
         const stream = await openaiClient!.chat.completions.create({
-          model: "deepseek-v4-pro",
+          model: DEEPSEEK_MODEL,
           messages,
           stream: true
         });
@@ -531,21 +533,20 @@ async function createApp() {
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     const dsKey = process.env.DEEPSEEK_API_KEY;
-    const gemKey = process.env.GEMINI_API_KEY;
     res.json({
       status: "ok",
-      ai: (dsKey || gemKey) ? "connected" : "missing_key",
-      provider: dsKey ? "deepseek" : gemKey ? "gemini" : "none",
+      ai: dsKey ? "connected" : "missing_key",
+      provider: dsKey ? "deepseek" : "none",
       timestamp: new Date().toISOString()
     });
   });
 
-  // API Diagnostics Route using Gemini
+  // API Diagnostics Route
   app.get("/api/diagnostics", async (req, res) => {
     const results: any = {
       timestamp: new Date().toISOString(),
       keys: {},
-      geminiTests: {}
+      aiTests: {}
     };
 
     const maskKey = (key: string | undefined) => {
@@ -554,25 +555,24 @@ async function createApp() {
       return `${key.slice(0, 4)}...${key.slice(-4)} (length: ${key.length})`;
     };
 
-    const gemKey = process.env.DEEPSEEK_API_KEY || process.env.GEMINI_API_KEY;
-    results.keys.gemini = { status: gemKey ? "PRESENT" : "MISSING", mask: maskKey(gemKey) };
+    const dsKey = process.env.DEEPSEEK_API_KEY;
+    results.keys.deepseek = { status: dsKey ? "PRESENT" : "MISSING", mask: maskKey(dsKey) };
 
     try {
-      if (!gemKey) {
-        results.geminiTests["deepseek-v4-pro"] = { success: false, error: "Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is set" };
+      if (!dsKey) {
+        results.aiTests[DEEPSEEK_MODEL] = { success: false, error: "DEEPSEEK_API_KEY is not set" };
       } else {
-        const ai = getGeminiClient();
+        const ai = getDeepSeekClient();
         const testRes = await ai.models.generateContent({
-          model: "deepseek-v4-pro",
           contents: "Hello, respond with exactly 'OK_TEST'",
         });
-        results.geminiTests["deepseek-v4-pro"] = {
+        results.aiTests[DEEPSEEK_MODEL] = {
           success: true,
           response: testRes.text?.trim()
         };
       }
     } catch (err: any) {
-      results.geminiTests["deepseek-v4-pro"] = {
+      results.aiTests[DEEPSEEK_MODEL] = {
         success: false,
         error: err.message || err.toString()
       };
@@ -600,9 +600,8 @@ Include:
 5. topics: an array of at least 8 progressive topics for this course. Each topic should have a "title", "chapter" (the module name), "chapter_order", and "order".`;
 
     try {
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are a professional university curriculum designer. You must return ONLY a valid JSON object matching the requested schema. Do not output conversational preamble or postscript.",
@@ -720,9 +719,8 @@ CRITICAL PRACTICE QUESTIONS INSTRUCTIONS:
 5. The 'explanation' (Retrieval Rationale) MUST be simple, short, and highly direct (strictly 1 or 2 sentences maximum), explaining in a very simple way why the correct option is indeed correct, and why option at correctIndex matches the calculated answer.`;
 
     try {
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt,
         config: {
           systemInstruction: systemPrompt,
@@ -813,9 +811,8 @@ Avoid text in the image. Keep it professional, clean and educational.
 Output ONLY the short prompt string.`;
 
     try {
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt,
       });
       const promptText = response.text?.trim() || `educational illustration for ${title} ${department}`;
@@ -841,9 +838,8 @@ CRITICAL INSTRUCTIONS FOR ACCURACY:
 5. The 'explanation' (Retrieval Rationale) MUST be simple, short, and highly direct (strictly 1 or 2 sentences maximum), explaining in a very simple way why the correct option is indeed correct, and why option at correctIndex matches the calculated answer.
 6. MANDATORY UNIQUE QUESTIONS: Every single one of the ${numQuestions || 5} questions MUST be completely unique, distinct, and high-quality. Do NOT generate duplicate questions or minor phrasing variations of the same test question. Choose different key definitions, core equations, operational mechanics, features, and use-cases of "${topicTitle}" to verify the student's concept recall broadly and deeply.`;
 
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are a professional academic test designer. You must return ONLY a JSON object containing a 'questions' array. No commentary.",
@@ -915,9 +911,8 @@ STUDENT'S FOLLOW-UP QUESTION:
 Task:
 Answer the student's question clearly, thoroughly, and encouragingly in 2 to 4 sentences. Explain the solution to help them understand the concept deeply.`;
 
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt
       });
 
@@ -1095,14 +1090,10 @@ When the user asks questions or raises issues, prioritize referencing, explainin
         }
       }
 
-      // Map models: pro -> 'gemini-1.5-flash', flash -> 'gemini-1.5-flash'
-      const activeModel = model === 'pro' ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
+      console.log(`Chat API: Streaming response via DeepSeek (${DEEPSEEK_MODEL})`);
 
-      console.log(`Chat API: Streaming response via model: ${activeModel}`);
-
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const responseStream = await ai.models.generateContentStream({
-        model: activeModel,
         contents: chatMessages,
         config: {
           systemInstruction
@@ -1157,18 +1148,13 @@ When the user asks questions or raises issues, prioritize referencing, explainin
 async function runStartupDiagnostics() {
   console.log("\n=================== STARTUP DIAGNOSTICS ===================");
   const dsKey = process.env.DEEPSEEK_API_KEY;
-  const gemKey = process.env.GEMINI_API_KEY;
-  const activeKey = dsKey || gemKey;
   console.log(`[DIAG] DEEPSEEK_API_KEY: ${dsKey ? "PRESENT (" + dsKey.slice(0, 4) + "..." + dsKey.slice(-4) + ")" : "MISSING"}`);
-  console.log(`[DIAG] GEMINI_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
-  console.log(`[DIAG] Active Key Source: ${dsKey ? "DEEPSEEK_API_KEY" : (gemKey ? "GEMINI_API_KEY (Fallback for DeepSeek)" : "NONE")}`);
 
-  if (activeKey) {
+  if (dsKey) {
     try {
-      console.log(`[DIAG] Testing API with deepseek-v4-pro...`);
-      const ai = getGeminiClient();
+      console.log(`[DIAG] Testing DeepSeek API with model: ${DEEPSEEK_MODEL}...`);
+      const ai = getDeepSeekClient();
       const testRes = await ai.models.generateContent({
-        model: "deepseek-v4-pro",
         contents: "Say 'DeepSeek OK'",
       });
       console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
@@ -1176,7 +1162,7 @@ async function runStartupDiagnostics() {
       console.error(`[DIAG] DeepSeek connection failure: ${e.message || e}`);
     }
   } else {
-    console.log("[DIAG] Warning: Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is defined. AI interactions will fail.");
+    console.log("[DIAG] Warning: DEEPSEEK_API_KEY is not defined. AI interactions will fail.");
   }
   console.log("===================================================================\n");
 }
