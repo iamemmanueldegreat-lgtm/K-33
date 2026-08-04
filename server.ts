@@ -172,7 +172,9 @@ function detectCurriculumSource(text: string, requestedSource?: string): "NBTE" 
   }
   const upper = text.toUpperCase();
   return upper.includes("NATIONAL BOARD FOR TECHNICAL EDUCATION") ||
-    upper.includes("NATIONAL DIPLOMA")
+    upper.includes("NATIONAL DIPLOMA") ||
+    upper.includes("HIGHER NATIONAL DIPLOMA") ||
+    /\bHND\b/.test(upper)
     ? "NBTE"
     : "CCMAS";
 }
@@ -231,7 +233,7 @@ function prepareCurriculumForParsing(text: string, source: "NBTE" | "CCMAS") {
   return {
     sourceText: tables,
     courseBlocks: detailBlocks,
-    note: "This is an NBTE National Diploma curriculum. Use the four Computer Science semester tables to identify courses, then use the matching course specification blocks to extract learning objectives/topics. Do not treat weekly lesson-plan rows as separate courses."
+    note: "This is an NBTE polytechnic curriculum. It may contain ND1/ND2 and/or HND1/HND2 course structures. Use the official year/level and semester tables to identify courses, then use the matching course specification blocks to extract learning objectives and topics. Preserve HND courses when present, and do not treat weekly lesson-plan rows as separate courses."
   };
 }
 
@@ -1336,7 +1338,12 @@ For CCMAS, leave semester null unless the excerpt explicitly provides a semester
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true, allowedHosts: true as any },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true as any,
+        hmr: false,
+        ws: false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

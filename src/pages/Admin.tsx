@@ -496,8 +496,15 @@ export default function Admin() {
       setPdfInfo(extracted);
       setCurrText(extracted.text);
 
-      if (extracted.source === 'NBTE' || extracted.source === 'CCMAS') {
-        setCurrProgramType(extracted.source);
+       if (extracted.source === 'CCMAS') {
+         setCurrFile(null);
+         setPdfInfo(null);
+         setCurrText('');
+         toast.error('University/CCMAS importing is not enabled yet. Please upload an NBTE polytechnic curriculum.');
+         return;
+       }
+       if (extracted.source === 'NBTE') {
+         setCurrProgramType('NBTE');
       }
       if (extracted.suggestedDepartment) {
         const departmentMatch = (extracted.source === 'NBTE' ? POLYTECHNIC_DEPARTMENTS : [...POLYTECHNIC_DEPARTMENTS, 'Computer Science'])
@@ -1093,7 +1100,7 @@ export default function Admin() {
             <div>
               <h2 className="text-xl font-black text-zinc-900 dark:text-white">Import Curriculum PDF</h2>
               <p className="text-xs text-zinc-500 mt-1">
-                Upload the official NBTE or CCMAS PDF. Kortex extracts its selectable text in your browser first, then DeepSeek organizes the relevant programme into courses and topics.
+                 Upload an official NBTE polytechnic PDF. Kortex extracts its selectable text in your browser first, then DeepSeek organizes ND and HND courses into topics.
               </p>
             </div>
 
@@ -1115,7 +1122,7 @@ export default function Admin() {
                     <FileUp size={23} />
                   </span>
                   <span className="font-black text-sm text-blue-950 dark:text-blue-100">Choose curriculum PDF</span>
-                  <span className="text-[11px] text-blue-700/70 dark:text-blue-300/70">Works with long text-based NBTE and CCMAS documents</span>
+                   <span className="text-[11px] text-blue-700/70 dark:text-blue-300/70">Supports long text-based ND and HND curriculum documents</span>
                 </label>
               ) : (
                 <div className="flex items-start gap-3">
@@ -1197,7 +1204,7 @@ export default function Admin() {
                   className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 h-11 appearance-none"
                 >
                   <option value="NBTE">NBTE — Polytechnic</option>
-                  <option value="CCMAS">CCMAS — University</option>
+                  <option value="CCMAS" disabled>CCMAS — University (coming later)</option>
                 </select>
               </div>
             </div>

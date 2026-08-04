@@ -50,9 +50,23 @@ function detectDepartment(text: string) {
 function detectLevels(text: string, source: CurriculumSource) {
   const levels = new Set<string>();
   if (source === 'NBTE') {
-    if (/YEAR\s+I\b/i.test(text)) levels.add('ND1');
-    if (/YEAR\s+II\b/i.test(text)) levels.add('ND2');
-    if (/\bHND\b/i.test(text)) {
+    const hasHigherNationalDiploma = /HIGHER\s+NATIONAL\s+DIPLOMA|\bHND\b/i.test(text);
+    const hasNationalDiploma = /\bNATIONAL\s+DIPLOMA\b|\bND\b/i.test(text);
+    const hasYearOne = /YEAR\s+I\b|\bYEAR\s+1\b/i.test(text);
+    const hasYearTwo = /YEAR\s+II\b|\bYEAR\s+2\b/i.test(text);
+
+    // HND documents commonly label their two levels as Year I and Year II.
+    // Prefer HND labels when the document identifies itself as HND; otherwise
+    // treat the same year headings as the ND1/ND2 structure.
+    if (hasHigherNationalDiploma) {
+      if (hasYearOne) levels.add('HND1');
+      if (hasYearTwo) levels.add('HND2');
+    } else if (hasNationalDiploma) {
+      if (hasYearOne) levels.add('ND1');
+      if (hasYearTwo) levels.add('ND2');
+    }
+
+    if (hasHigherNationalDiploma && !hasYearOne && !hasYearTwo) {
       levels.add('HND1');
       levels.add('HND2');
     }
