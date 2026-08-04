@@ -1,0 +1,2 @@
+- [Curriculum data model](curriculum-data-model.md) — NBTE courses use school:'NBTE', CCMAS use 'CCMAS'; Library filters include these shared sources alongside school-specific ones
+- [DeepSeek client setup](deepseek-client.md) — all AI uses getDeepSeekClient() + model constant DEEPSEEK_MODEL='deepseek-chat'; no Gemini or Anthropic anywhere

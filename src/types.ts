@@ -71,6 +71,11 @@ export interface Course {
   thumbnail?: string;
   is_ocw?: boolean;
   curriculum?: string;
+  // Curriculum-based fields
+  semester?: 1 | 2;
+  credit_units?: number;
+  program_type?: 'polytechnic' | 'university';
+  source?: 'NBTE' | 'CCMAS' | 'custom';
 }
 
 export interface Topic {

@@ -494,6 +494,9 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
 async function createApp() {
   const app = express();
 
+  // Trust the Replit proxy so express-rate-limit gets the real client IP
+  app.set('trust proxy', 1);
+
   // Middleware to log requests
   app.use((req, res, next) => {
     console.log(`[Express] Received ${req.method} ${req.url}`);
@@ -1116,6 +1119,67 @@ When the user asks questions or raises issues, prioritize referencing, explainin
       res.write(`data: ${JSON.stringify({ text: fallbackText })}\n\n`);
       res.write("data: [DONE]\n\n");
       return res.end();
+    }
+  });
+
+  // Curriculum PDF parsing — extracts structured courses + topics from curriculum text
+  app.post("/api/parse-curriculum", async (req, res) => {
+    const { text, department, level, semester, programType } = req.body;
+    if (!text?.trim() || !department || !level) {
+      return res.status(400).json({ error: "text, department, and level are required" });
+    }
+
+    const prompt = `You are an expert at parsing Nigerian academic curriculum documents from NBTE (polytechnics) or CCMAS (universities).
+
+Parse the following curriculum text for:
+- Department: "${department}"
+- Level: "${level}"
+- Semester: ${semester || 1}
+- Program Type: ${programType || 'NBTE Polytechnic'}
+
+CURRICULUM TEXT:
+"""
+${text.substring(0, 24000)}
+"""
+
+Extract every course listed. For each course provide:
+- code: the course code exactly as written (e.g. "COM 111", "MTH 111")
+- title: the full course title
+- credit_units: number of credit/contact/lecture hours (use 2 if not stated)
+- topics: every topic, unit, or subtopic listed for this course
+
+For topics, group them into logical chapters if the curriculum has chapter/unit headings. If not, group every 4-6 related topics into a chapter with a descriptive name.
+Each topic must have: title, chapter (string), chapter_order (number, starting at 1), order (number within chapter, starting at 1).
+
+Return ONLY a valid JSON object with this exact structure:
+{
+  "courses": [
+    {
+      "code": "COM 111",
+      "title": "Introduction to Computing",
+      "credit_units": 3,
+      "topics": [
+        { "title": "History and Evolution of Computers", "chapter": "Foundations of Computing", "chapter_order": 1, "order": 1 },
+        { "title": "Types of Computers and Their Uses", "chapter": "Foundations of Computing", "chapter_order": 1, "order": 2 }
+      ]
+    }
+  ]
+}`;
+
+    try {
+      const ai = getDeepSeekClient();
+      const response = await ai.models.generateContent({
+        contents: prompt,
+        config: {
+          systemInstruction: "You are an expert at parsing Nigerian polytechnic and university curriculum documents. Extract structured data accurately. Return only valid JSON, nothing else.",
+          responseMimeType: "application/json"
+        }
+      });
+      const parsed = parseJsonSafe(response.text || "{}");
+      return res.json(parsed);
+    } catch (error: any) {
+      console.error("Curriculum parsing error:", error);
+      return res.status(500).json({ error: error.message || "Failed to parse curriculum" });
     }
   });
 

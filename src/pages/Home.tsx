@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, limit, getDocs, getDoc, doc, orderBy, onSnapshot } from 'firebase/firestore';
+import { isPolytechnic } from '../lib/constants';
 import ThemeToggle from '../components/ThemeToggle';
 import type { Course, Topic } from '../types';
 import LoadingScreen, { LoadingSpinner } from '../components/LoadingScreen';
@@ -44,11 +45,20 @@ export default function Home() {
         } as Course));
 
         const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
-        coursesData = coursesData.filter(c => 
-          c.school === user?.school &&
-          departments.includes(c.department) &&
-          (c.level?.replace(/\s+/g, '') === user?.level?.replace(/\s+/g, '') || c.level === 'All Levels' || !c.level)
-        );
+        const isPoly = isPolytechnic(user?.school || '');
+        coursesData = coursesData.filter(c => {
+          const schoolMatch =
+            c.school === user?.school ||
+            (isPoly && c.school === 'NBTE') ||
+            (!isPoly && c.school === 'CCMAS');
+          return (
+            schoolMatch &&
+            departments.includes(c.department) &&
+            (c.level?.replace(/\s+/g, '') === user?.level?.replace(/\s+/g, '') ||
+              c.level === 'All Levels' ||
+              !c.level)
+          );
+        });
         
         setTotalAvailableCourses(coursesData.length);
         setRecentCourses(coursesData.slice(0, 10));
