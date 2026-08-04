@@ -27,6 +27,13 @@ const schoolMatch =
 - `source: 'NBTE' | 'CCMAS' | 'custom'`
 
 ## Admin import flow
-Admin → "Import Curriculum" tab → paste PDF text → POST /api/parse-curriculum → preview → save.
-Firestore doc ID format: `${dept}-${level}-${code}` (lowercased, non-alphanumeric stripped).
-Topics stored as subcollection `courses/{courseId}/topics`.
+Admin → "Import Curriculum" tab → upload PDF → extract selectable text locally in the browser → review/edit text → POST `/api/parse-curriculum` → preview → save.
+The importer uses PDF.js with a bundled worker, so the PDF itself does not need to be uploaded to a third-party extractor.
+
+NBTE PDFs use semester course tables plus later course specification blocks. CCMAS Computing PDFs contain multiple programme sections and level-based global course structures. The server isolates the relevant section and parses specification excerpts in small batches to avoid oversized AI prompts.
+
+Firestore doc IDs include department, level, semester (or `all` for CCMAS), and course code to prevent collisions across a full curriculum import. Topics remain in `courses/{courseId}/topics`.
+
+**Why:** The supplied NBTE and CCMAS PDFs are long, text-based documents with different layouts; one generic pasted-text prompt incorrectly risks truncating content, mixing programmes, or assigning the wrong semester.
+
+**How to apply:** Keep PDF extraction client-side, preserve extracted page markers for server-side section detection, and never apply one semester to an entire multi-semester PDF when the AI cannot identify it.

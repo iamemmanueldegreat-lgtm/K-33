@@ -10,7 +10,7 @@ export default defineConfig(() => {
     },
     server: {
       host: '0.0.0.0',
-      allowedHosts: true,
+       allowedHosts: true as true,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: {
         ignored: ['**/.local/**', '**/.cache/**', '**/node_modules/**'],

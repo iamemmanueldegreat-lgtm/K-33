@@ -166,6 +166,83 @@ function parseJsonSafe(text: string): any {
   }
 }
 
+function detectCurriculumSource(text: string, requestedSource?: string): "NBTE" | "CCMAS" {
+  if (requestedSource === "NBTE" || requestedSource === "CCMAS") {
+    return requestedSource;
+  }
+  const upper = text.toUpperCase();
+  return upper.includes("NATIONAL BOARD FOR TECHNICAL EDUCATION") ||
+    upper.includes("NATIONAL DIPLOMA")
+    ? "NBTE"
+    : "CCMAS";
+}
+
+function extractCourseSpecificationBlocks(text: string, source: "NBTE" | "CCMAS") {
+  const codePattern = /(?:course\s+code|subject\/course|course\s+code\s*:?)\s*:?\s*([A-Z]{2,4}\s*\d{3})/gi;
+  const matches = Array.from(text.matchAll(codePattern));
+  const seen = new Set<string>();
+  const blocks: string[] = [];
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const rawCode = matches[index][1].replace(/\s+/g, " ").trim().toUpperCase();
+    if (seen.has(rawCode)) continue;
+    const start = matches[index].index ?? 0;
+    const nextStart = matches[index + 1]?.index ?? text.length;
+    const block = text.slice(start, nextStart).trim();
+    if (block.length < 80) continue;
+    seen.add(rawCode);
+    blocks.push(block.slice(0, source === "NBTE" ? 5500 : 4500));
+  }
+
+  return blocks;
+}
+
+function prepareCurriculumForParsing(text: string, source: "NBTE" | "CCMAS") {
+  const pageStart = (page: number) => text.indexOf(`===== PAGE ${page} =====`);
+
+  if (source === "CCMAS") {
+    const computerScienceMatches = Array.from(text.matchAll(/B\.Sc\. Computer Science/gi));
+    const computerScienceStart = computerScienceMatches.length > 1
+      ? computerScienceMatches[1].index ?? text.indexOf("B.Sc. Computer Science")
+      : text.indexOf("B.Sc. Computer Science");
+    const cybersecurityStart = text.indexOf("B.Sc. Cybersecurity", computerScienceStart + 1);
+    const section = computerScienceStart >= 0
+      ? text.slice(computerScienceStart, cybersecurityStart > computerScienceStart ? cybersecurityStart : text.length)
+      : text;
+    const structureStart = section.indexOf("Global Course Structure");
+    const detailsStart = section.indexOf("Course Contents and Learning Outcomes");
+    const structureEnd = detailsStart > structureStart ? detailsStart : section.length;
+    const details = detailsStart >= 0 ? section.slice(detailsStart) : section;
+    return {
+      sourceText: section.slice(structureStart >= 0 ? structureStart : 0, structureEnd).slice(0, 60000),
+      courseBlocks: extractCourseSpecificationBlocks(details, source),
+      note: "This is a CCMAS Computing document. Use the B.Sc. Computer Science programme section only; ignore Cybersecurity, Data Science, Information Systems, and unrelated programmes."
+    };
+  }
+
+  const tableStart = pageStart(8);
+  const detailStart = pageStart(12);
+  const tables = tableStart >= 0
+    ? text.slice(tableStart, detailStart > tableStart ? detailStart : text.length).slice(0, 45000)
+    : text.slice(0, 45000);
+  const detailText = detailStart >= 0 ? text.slice(detailStart) : text;
+  const detailBlocks = extractCourseSpecificationBlocks(detailText, source);
+
+  return {
+    sourceText: tables,
+    courseBlocks: detailBlocks,
+    note: "This is an NBTE National Diploma curriculum. Use the four Computer Science semester tables to identify courses, then use the matching course specification blocks to extract learning objectives/topics. Do not treat weekly lesson-plan rows as separate courses."
+  };
+}
+
+function chunkCurriculumBlocks(blocks: string[], maxBlocks = 7) {
+  const chunks: string[][] = [];
+  for (let index = 0; index < blocks.length; index += maxBlocks) {
+    chunks.push(blocks.slice(index, index + maxBlocks));
+  }
+  return chunks.length ? chunks : [[]];
+}
+
 function cleanAndValidateQuestions(questions: any[]): any[] {
   if (!Array.isArray(questions)) return [];
   return questions.map((q) => {
@@ -1124,59 +1201,131 @@ When the user asks questions or raises issues, prioritize referencing, explainin
 
   // Curriculum PDF parsing — extracts structured courses + topics from curriculum text
   app.post("/api/parse-curriculum", async (req, res) => {
-    const { text, department, level, semester, programType } = req.body;
-    if (!text?.trim() || !department || !level) {
-      return res.status(400).json({ error: "text, department, and level are required" });
+    const { text, department, level, semester, programType, source: requestedSource } = req.body;
+    if (!text?.trim()) {
+      return res.status(400).json({ error: "Extracted curriculum text is required" });
     }
 
-    const prompt = `You are an expert at parsing Nigerian academic curriculum documents from NBTE (polytechnics) or CCMAS (universities).
+    const source = detectCurriculumSource(text, requestedSource || programType);
+    const prepared = prepareCurriculumForParsing(text, source);
+    const selectedDepartment = department || (source === "NBTE" ? "Computer Science" : "Computer Science");
+    const selectedLevel = level || (source === "NBTE" ? "ND1" : "100 Level");
+    const selectedSemester = source === "NBTE" ? (semester || 1) : null;
+    const structureText = prepared.sourceText.slice(0, 65000);
+    const batches = chunkCurriculumBlocks(prepared.courseBlocks, source === "CCMAS" ? 6 : 5);
 
-Parse the following curriculum text for:
-- Department: "${department}"
-- Level: "${level}"
-- Semester: ${semester || 1}
-- Program Type: ${programType || 'NBTE Polytechnic'}
+    try {
+      const ai = getDeepSeekClient();
+      const extractedCourses: any[] = [];
 
-CURRICULUM TEXT:
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+        const courseBlocks = batches[batchIndex]
+          .join("\n\n--- COURSE SPECIFICATION ---\n\n")
+          .slice(0, 36000);
+        const prompt = `You are an expert Nigerian curriculum archivist. Parse one batch of an official ${source} curriculum PDF.
+
+DOCUMENT RULES:
+${prepared.note}
+- Preserve official course codes and titles exactly; do not invent courses.
+- The course structure text is authoritative for course units, levels, and semesters.
+- Only return courses represented by the specification excerpts in THIS BATCH.
+- Use the specification excerpts to extract actual general objectives, theoretical contents, practical contents, learning outcomes, and assessment topics.
+- Ignore table totals, prerequisites, page numbers, repeated headers/footers, admissions prose, and unrelated programmes.
+- Do not return duplicate courses unless the excerpts contain genuinely different level/semester offerings.
+- A course may have an empty topics array only when no teachable content is present in its excerpt.
+
+IMPORT CONTEXT:
+- Department: "${selectedDepartment}"
+- Default level if a course row does not state one: "${selectedLevel}"
+- Default semester if a course row does not state one: ${selectedSemester ?? "not applicable for this CCMAS level-based structure"}
+
+COURSE STRUCTURE / RELEVANT PDF TEXT:
 """
-${text.substring(0, 24000)}
+${structureText}
 """
 
-Extract every course listed. For each course provide:
-- code: the course code exactly as written (e.g. "COM 111", "MTH 111")
-- title: the full course title
-- credit_units: number of credit/contact/lecture hours (use 2 if not stated)
-- topics: every topic, unit, or subtopic listed for this course
+SPECIFICATION EXCERPTS FOR THIS BATCH:
+"""
+${courseBlocks}
+"""
 
-For topics, group them into logical chapters if the curriculum has chapter/unit headings. If not, group every 4-6 related topics into a chapter with a descriptive name.
-Each topic must have: title, chapter (string), chapter_order (number, starting at 1), order (number within chapter, starting at 1).
-
-Return ONLY a valid JSON object with this exact structure:
+Return ONLY valid JSON:
 {
   "courses": [
     {
       "code": "COM 111",
       "title": "Introduction to Computing",
+      "level": "ND1",
+      "semester": ${selectedSemester ?? "null"},
       "credit_units": 3,
       "topics": [
-        { "title": "History and Evolution of Computers", "chapter": "Foundations of Computing", "chapter_order": 1, "order": 1 },
-        { "title": "Types of Computers and Their Uses", "chapter": "Foundations of Computing", "chapter_order": 1, "order": 2 }
+        { "title": "History and Evolution of Computers", "chapter": "Foundations of Computing", "chapter_order": 1, "order": 1 }
       ]
     }
   ]
-}`;
+}
 
-    try {
-      const ai = getDeepSeekClient();
-      const response = await ai.models.generateContent({
-        contents: prompt,
-        config: {
-          systemInstruction: "You are an expert at parsing Nigerian polytechnic and university curriculum documents. Extract structured data accurately. Return only valid JSON, nothing else.",
-          responseMimeType: "application/json"
+Allowed levels: ND1, ND2, HND1, HND2, 100 Level, 200 Level, 300 Level, 400 Level.
+For CCMAS, leave semester null unless the excerpt explicitly provides a semester.`;
+
+        const response = await ai.models.generateContent({
+          contents: prompt,
+          config: {
+            systemInstruction: "Extract only official Nigerian curriculum data from the provided text. Return valid JSON and never invent missing courses.",
+            responseMimeType: "application/json"
+          }
+        });
+        const parsedBatch = parseJsonSafe(response.text || "{}");
+        if (Array.isArray(parsedBatch?.courses)) {
+          extractedCourses.push(...parsedBatch.courses);
         }
+      }
+
+      const mergedCourses = new Map<string, any>();
+      for (const course of extractedCourses) {
+        const code = String(course.code || "").replace(/\s+/g, " ").trim().toUpperCase();
+        const title = String(course.title || "").replace(/\s+/g, " ").trim();
+        if (!code || !title) continue;
+
+        const courseLevel = course.level || selectedLevel;
+        const courseSemester = source === "NBTE" && (course.semester === 1 || course.semester === 2)
+          ? course.semester
+          : source === "NBTE" ? selectedSemester : null;
+        const key = `${code}|${courseLevel}|${courseSemester ?? "all"}`;
+        const existing = mergedCourses.get(key);
+        const incomingTopics = Array.isArray(course.topics) ? course.topics : [];
+
+        if (!existing) {
+          mergedCourses.set(key, {
+            code,
+            title,
+            level: courseLevel,
+            semester: courseSemester,
+            credit_units: Number(course.credit_units) || 2,
+            topics: incomingTopics
+          });
+          continue;
+        }
+
+        const topicKeys = new Set((existing.topics || []).map((topic: any) => String(topic.title || "").toLowerCase()));
+        for (const topic of incomingTopics) {
+          const topicKey = String(topic.title || "").toLowerCase();
+          if (topicKey && !topicKeys.has(topicKey)) {
+            existing.topics.push(topic);
+            topicKeys.add(topicKey);
+          }
+        }
+        existing.credit_units = existing.credit_units || Number(course.credit_units) || 2;
+      }
+
+      const courses = Array.from(mergedCourses.values());
+      return res.json({
+        source,
+        department: selectedDepartment,
+        detectedSections: prepared.courseBlocks.length,
+        batches: batches.length,
+        courses
       });
-      const parsed = parseJsonSafe(response.text || "{}");
-      return res.json(parsed);
     } catch (error: any) {
       console.error("Curriculum parsing error:", error);
       return res.status(500).json({ error: error.message || "Failed to parse curriculum" });
