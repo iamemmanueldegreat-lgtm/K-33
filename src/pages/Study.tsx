@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2, WifiOff, CloudDownload, DownloadCloud, Sparkles, Check, Brain, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { generateStudyContent } from '../lib/api';
-import { canUnlockTopic, unlockTopic } from '../lib/credits';
+import { generateStudyContent } from '../lib/gemini';
+import { canAffordCredits, getCreditsRemaining, getDailyLimit, spendCredits, AI_CREDIT_COSTS } from '../lib/credits';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'react-hot-toast';
@@ -204,15 +204,17 @@ export default function Study() {
               const userDept = user?.department || "";
               const userSchool = user?.school || "";
 
-              if (!canUnlockTopic(user, topicId!)) {
+              if (!canAffordCredits(user, AI_CREDIT_COSTS.STUDY_GENERATION)) {
                 if (stepInterval) clearInterval(stepInterval);
-                toast.error('Free topic limit reached. Upgrade to Pro to unlock unlimited topics.', { duration: 4000 });
+                toast.error(
+                  `No AI credits left today — ${getCreditsRemaining(user)} of ${getDailyLimit(user)} remaining. Resets at midnight or upgrade to Pro for 200 credits/day.`,
+                  { duration: 5000 }
+                );
                 setLoading(false);
                 setGenerationStep('');
-                navigate('/billing');
                 return;
               }
-              if (user?.id) unlockTopic(user.id, topicId!).catch(console.error);
+              if (user?.id) spendCredits(user.id, user, AI_CREDIT_COSTS.STUDY_GENERATION).catch(console.error);
 
               const studyPackage = await generateStudyContent(topicTitle, courseTitle, userLevel, userDept, userSchool);
               if (stepInterval) clearInterval(stepInterval);
@@ -391,8 +393,7 @@ export default function Study() {
                        onCancel={() => setActiveTab('Explanation')}
                        courseTitle={titles.course} 
                        courseCode={courseId || ''} 
-                       topicTitle={titles.topic}
-                       topicId={topicId}
+                       topicTitle={titles.topic} 
                        preGeneratedQuestions={quizQuestions}
                        chapter={currentChapter}
                      />

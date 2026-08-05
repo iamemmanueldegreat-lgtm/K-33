@@ -29,6 +29,8 @@ export default function Billing() {
   const navigate = useNavigate();
   const { user } = useAuth();
   
+  // Selection state ('monthly' or 'semester')
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'semester'>('semester');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank_transfer'>('card');
@@ -85,10 +87,16 @@ export default function Billing() {
     }
   };
 
-  const basePrice = 5000;
-  const discountedPrice = 3000;
-  const currentPrice = isCouponApplied ? discountedPrice : basePrice;
-  const planLabel = 'Kortex AI Pro';
+  const baseMonthlyPrice = 3000;
+  const baseSemesterPrice = 6000;
+  const discountedMonthlyPrice = 2000;
+  const discountedSemesterPrice = 3000;
+
+  const currentPrice = selectedPlan === 'monthly' 
+    ? (isCouponApplied ? discountedMonthlyPrice : baseMonthlyPrice) 
+    : (isCouponApplied ? discountedSemesterPrice : baseSemesterPrice);
+    
+  const planLabel = selectedPlan === 'monthly' ? 'Monthly Premium' : 'Semester Premium';
 
   // Toggle/Manage state helper
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
@@ -110,7 +118,7 @@ export default function Billing() {
       const userRef = doc(db, 'users', user.id);
       await updateDoc(userRef, {
         payment_status: 'awaiting_approval',
-        payment_plan: 'pro',
+        payment_plan: selectedPlan,
         payment_amount: currentPrice,
         payment_requested_at: new Date().toISOString(),
         used_coupon: appliedCouponString || null
@@ -320,30 +328,100 @@ export default function Billing() {
               </div>
 
               {!user?.is_pro ? (
-                /* Single Plan Pricing Card */
-                <div className="mt-2 mb-4 w-full">
-                  <div className="p-5 sm:p-6 rounded-[20px] bg-[#EBF5FB] border-2 border-[#00BFFF] dark:bg-zinc-900 shadow-md text-zinc-900 dark:text-white flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[12px] font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">Kortex AI Pro</span>
-                      <div className="w-5 h-5 rounded-[5px] bg-[#00BFFF] border border-[#00BFFF] flex items-center justify-center text-white shadow-sm">
-                        <Check size={12} strokeWidth={4} />
+                /* Subscription Plan Cards Grid Side by Side */
+                <div className="grid grid-cols-2 gap-4 mt-2 mb-4 w-full">
+                  {/* Monthly Card */}
+                  <div 
+                    onClick={() => {
+                      if (!user?.is_pro) setSelectedPlan('monthly');
+                    }}
+                    className={`p-4 sm:p-5 rounded-[20px] transition-all duration-300 relative border cursor-pointer flex flex-col justify-between min-h-[160px] sm:min-h-[170px] ${
+                      selectedPlan === 'monthly' && !user?.is_pro
+                        ? 'bg-[#EBF5FB] border-[#00BFFF] dark:bg-zinc-900 border-2 shadow-md text-zinc-900 dark:text-white'
+                        : 'bg-zinc-50/70 border-zinc-200 hover:border-[#00BFFF]/50 text-zinc-650 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-zinc-400 border shadow-sm'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <span className="text-[11.5px] sm:text-[12.5px] font-bold text-zinc-700 dark:text-zinc-350">
+                        Monthly Pass
+                      </span>
+                      <div className={`w-4.5 h-4.5 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
+                        selectedPlan === 'monthly' && !user?.is_pro
+                          ? 'border-[#00BFFF] bg-[#00BFFF] text-white shadow-sm'
+                          : 'border-zinc-300 dark:border-zinc-700'
+                      }`}>
+                        {selectedPlan === 'monthly' && !user?.is_pro && <Check size={12} strokeWidth={4} />}
                       </div>
                     </div>
-                    <div className="flex items-end gap-3">
-                      {isCouponApplied ? (
-                        <>
-                          <span className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">₦3,000</span>
-                          <span className="text-base font-bold text-zinc-400 line-through mb-0.5">₦5,000</span>
-                          <span className="ml-auto text-[10px] font-extrabold tracking-wide text-[#00BFFF] bg-[#00BFFF]/10 border border-[#00BFFF]/20 rounded px-2 py-0.5">Save 40%</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">₦5,000</span>
-                          <span className="text-[10px] font-extrabold tracking-wide text-[#00BFFF] bg-[#00BFFF]/10 border border-[#00BFFF]/20 rounded px-2 py-0.5 ml-auto">Coupon available</span>
-                        </>
-                      )}
+                    
+                    <div className="mt-auto pt-1 flex flex-col items-start w-full">
+                      <div className="flex items-center gap-2 mb-1 w-full flex-wrap">
+                        {isCouponApplied ? (
+                          <>
+                            <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+                              ₦2,000
+                            </span>
+                            <span className="text-[11px] sm:text-[12px] font-bold text-zinc-400 line-through tracking-tight">₦3,000</span>
+                          </>
+                        ) : (
+                          <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
+                            ₦3,000
+                          </span>
+                        )}
+                      </div>
+                      {/* Coupon / Discount badge */}
+                      <div className="mt-1 inline-flex items-center bg-[#00BFFF]/10 hover:bg-[#00BFFF]/20 border border-[#00BFFF]/20 rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold tracking-wide text-[#00BFFF] whitespace-nowrap overflow-hidden transition-all">
+                        {isCouponApplied ? 'Save 33%' : 'Apply Coupon Code'}
+                      </div>
+                      <p className="text-[9.5px] sm:text-[10.5px] text-zinc-500 dark:text-zinc-400 font-semibold mt-1">per month</p>
                     </div>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-semibold">Valid until August 31, 2026</p>
+                  </div>
+
+                  {/* Semester Card */}
+                  <div 
+                    onClick={() => {
+                      if (!user?.is_pro) setSelectedPlan('semester');
+                    }}
+                    className={`p-4 sm:p-5 rounded-[20px] transition-all duration-300 relative border cursor-pointer flex flex-col justify-between min-h-[160px] sm:min-h-[170px] ${
+                      selectedPlan === 'semester' && !user?.is_pro
+                        ? 'bg-[#EBF5FB] border-[#00BFFF] dark:bg-zinc-900 border-2 shadow-md text-zinc-900 dark:text-white'
+                        : 'bg-zinc-50/70 border-zinc-200 hover:border-[#00BFFF]/50 text-zinc-650 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-zinc-400 border shadow-sm'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <span className="text-[11.5px] sm:text-[12.5px] font-bold text-zinc-700 dark:text-zinc-350">
+                        Semester Pass
+                      </span>
+                      <div className={`w-4.5 h-4.5 rounded-[4px] border flex items-center justify-center transition-all shrink-0 ${
+                        selectedPlan === 'semester' && !user?.is_pro
+                          ? 'border-[#00BFFF] bg-[#00BFFF] text-white shadow-sm'
+                          : 'border-zinc-300 dark:border-zinc-700'
+                      }`}>
+                        {selectedPlan === 'semester' && !user?.is_pro && <Check size={12} strokeWidth={4} />}
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto pt-1 flex flex-col items-start w-full">
+                      <div className="flex items-center gap-2 mb-1 w-full flex-wrap">
+                        {isCouponApplied ? (
+                          <>
+                            <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight uppercase">
+                              ₦3,000
+                            </span>
+                            <span className="text-[11px] sm:text-[12px] font-bold text-zinc-400 line-through tracking-tight">₦6,000</span>
+                          </>
+                        ) : (
+                          <span className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight uppercase">
+                            ₦6,000
+                          </span>
+                        )}
+                      </div>
+                      {/* Save badge */}
+                      <div className="mt-1 inline-flex items-center bg-[#FFBF00]/10 dark:bg-[#FFBF00]/20 border border-[#FFBF00]/30 rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-extrabold tracking-wide text-amber-500 dark:text-amber-400 whitespace-nowrap overflow-hidden">
+                        {isCouponApplied ? 'Save 50%' : 'Save 50%'}
+                      </div>
+                      <p className="text-[9.5px] sm:text-[10.5px] text-zinc-500 dark:text-zinc-400 font-semibold mt-1">per semester</p>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -352,7 +430,9 @@ export default function Billing() {
                   <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center pb-3.5 border-b border-zinc-100 dark:border-zinc-800/80">
                       <span className="text-[13px] font-medium text-zinc-500 dark:text-zinc-400">Current Plan</span>
-                      <span className="font-bold text-[14px] text-zinc-900 dark:text-white">Kortex AI Pro</span>
+                      <span className="font-bold text-[14px] text-zinc-900 dark:text-white capitalize">
+                        {user.payment_plan === 'semester' ? 'Semester Pass' : 'Monthly Pass'}
+                      </span>
                     </div>
                     <div className="flex justify-between items-center pb-3.5 border-b border-zinc-100 dark:border-zinc-800/80">
                       <span className="text-[13px] font-medium text-zinc-500 dark:text-zinc-400">Activated On</span>
@@ -364,15 +444,28 @@ export default function Billing() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-[13px] font-medium text-zinc-500 dark:text-zinc-400">Valid Until</span>
-                      <span className="font-black text-[14px] text-emerald-600 dark:text-emerald-400">August 31, 2026</span>
+                      <span className="font-black text-[14px] text-emerald-600 dark:text-emerald-400">
+                        {user.payment_plan === 'semester' 
+                          ? 'End of Semester' 
+                          : user.payment_requested_at 
+                            ? (() => {
+                                const d = new Date(user.payment_requested_at);
+                                d.setMonth(d.getMonth() + 1);
+                                return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+                              })()
+                            : 'Next Month'}
+                      </span>
                     </div>
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Coupon Code Input */}
+            {/* Bottom block with Coupon Input [when not pro] and Action Button */}
+            <div className="mt-auto w-full flex flex-col items-center">
               {!user?.is_pro && (
-                <div className="w-full mt-4 flex gap-2">
+                /* Coupon Code Input - perfectly centered in the middle of the space! */
+                <div className="w-full mb-6 flex gap-2">
                   <input 
                     type="text" 
                     value={couponInput}
@@ -390,10 +483,7 @@ export default function Billing() {
                   </button>
                 </div>
               )}
-            </div>
 
-            {/* Bottom block with Action Button */}
-            <div className="mt-auto w-full flex flex-col items-center">
               {/* Action Button - Fully Matches Mockup with sky-blue pill button and right-pointing caret symbol */}
               <button
                 onClick={startMonnifyCheckout}
@@ -575,11 +665,11 @@ export default function Billing() {
                     <div className="p-4 sm:p-5 flex justify-between items-center">
                       <div>
                         <p className="text-[12.5px] text-[#6B7280] dark:text-gray-400 mb-0.5">Bank Name</p>
-                        <p className="font-semibold text-[15px] text-[#111827] dark:text-white">Moniepoint MFB</p>
+                        <p className="font-semibold text-[15px] text-[#111827] dark:text-white">OPay</p>
                       </div>
                       <div className="text-right">
                         <p className="text-[12.5px] text-[#6B7280] dark:text-gray-400 mb-0.5">Account Name</p>
-                        <p className="font-semibold text-[15px] text-[#111827] dark:text-white">Osarobo Godstime Eghosa</p>
+                        <p className="font-semibold text-[15px] text-[#111827] dark:text-white">ALIJI OJISI</p>
                       </div>
                     </div>
                     
@@ -589,8 +679,8 @@ export default function Billing() {
                       <div>
                         <p className="text-[12.5px] text-[#6B7280] dark:text-gray-400 mb-1">Account No.</p>
                         <div className="flex items-center gap-2">
-                          <p className="font-bold text-[16px] sm:text-[18px] text-[#111827] dark:text-white tracking-tight">6667336080</p>
-                          <button onClick={() => handleCopy("6667336080", "Account number")} className="text-blue-500 hover:opacity-80 active:scale-95 transition-all outline-none p-1 -m-1"><Copy size={16} /></button>
+                          <p className="font-bold text-[16px] sm:text-[18px] text-[#111827] dark:text-white tracking-tight">8077483163</p>
+                          <button onClick={() => handleCopy("8077483163", "Account number")} className="text-blue-500 hover:opacity-80 active:scale-95 transition-all outline-none p-1 -m-1"><Copy size={16} /></button>
                         </div>
                       </div>
                       <div className="flex flex-col items-end text-right">
@@ -680,7 +770,9 @@ export default function Billing() {
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-zinc-400">Current Plan</span>
-                  <span className="text-white font-semibold">Kortex AI Pro</span>
+                  <span className="text-white font-semibold">
+                    {user?.payment_plan === 'semester' ? 'Semester Pass' : 'Monthly Pass'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-zinc-400">Activated On</span>
@@ -692,7 +784,17 @@ export default function Billing() {
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-zinc-400">Valid Until</span>
-                  <span className="text-emerald-400 font-bold">August 31, 2026</span>
+                  <span className="text-emerald-400 font-bold">
+                    {user?.payment_plan === 'semester' 
+                      ? 'End of Semester' 
+                      : user?.payment_requested_at 
+                        ? (() => {
+                            const d = new Date(user.payment_requested_at);
+                            d.setMonth(d.getMonth() + 1);
+                            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+                          })()
+                        : 'Next Month'}
+                  </span>
                 </div>
               </div>
 

@@ -10,11 +10,8 @@ export default defineConfig(() => {
     },
     server: {
       host: '0.0.0.0',
-      allowedHosts: true as true,
-      // Replit's embedded preview should expose only the application port.
-      // HMR opens a second socket port that can be routed as "Upgrade Required".
-      hmr: false,
-      ws: false as false,
+      allowedHosts: true as any,
+      hmr: process.env.DISABLE_HMR !== 'true',
       watch: {
         ignored: ['**/.local/**', '**/.cache/**', '**/node_modules/**'],
       },

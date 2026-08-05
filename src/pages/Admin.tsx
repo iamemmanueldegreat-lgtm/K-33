@@ -3,16 +3,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, getDocs, getDoc, setDoc, doc, query, where, writeBatch } from 'firebase/firestore';
-import { ArrowLeft, Loader2, Plus, List, FolderPlus, BookOpen, Edit2, Check, X, Crown, Search, Banknote, FileDown, FileUp, FileText, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, List, FolderPlus, BookOpen, Edit2, Check, X, Crown, Search, Banknote } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { AUCHI_POLY_DEPARTMENTS, POLYTECHNIC_DEPARTMENTS, POLYTECHNIC_LEVELS, STANDARD_DEPARTMENTS, UNIVERSITY_LEVELS } from '../lib/constants';
-import { extractCurriculumPdf, type ExtractedCurriculumPdf } from '../lib/curriculumPdf';
+import { AUCHI_POLY_DEPARTMENTS } from '../lib/constants';
 
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab ] = useState<'courses' | 'topics' | 'manage' | 'payments' | 'withdrawals' | 'curriculum'>('courses');
+  const [activeTab, setActiveTab ] = useState<'courses' | 'topics' | 'manage' | 'payments' | 'withdrawals'>('courses');
   
   // Courses Form State
   const [department, setDepartment] = useState(AUCHI_POLY_DEPARTMENTS[0] || 'Computer Science');
@@ -42,19 +41,6 @@ export default function Admin() {
   // Withdrawal requests
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
-
-  // Curriculum import state
-  const [currDept, setCurrDept] = useState('Computer Science');
-  const [currLevel, setCurrLevel] = useState('ND1');
-  const [currSemester, setCurrSemester] = useState<1 | 2>(1);
-  const [currProgramType, setCurrProgramType] = useState<'NBTE' | 'CCMAS'>('NBTE');
-  const [currText, setCurrText] = useState('');
-  const [currFile, setCurrFile] = useState<File | null>(null);
-  const [pdfInfo, setPdfInfo] = useState<ExtractedCurriculumPdf | null>(null);
-  const [extractingPdf, setExtractingPdf] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [parsedCurriculum, setParsedCurriculum] = useState<any>(null);
-  const [savingCurriculum, setSavingCurriculum] = useState(false);
 
   useEffect(() => {
     if (user && !user.is_admin) {
@@ -386,154 +372,6 @@ export default function Admin() {
     }
   };
 
-  const handleParseCurriculum = async () => {
-    if (!currText.trim()) {
-      toast.error('Please paste curriculum text first');
-      return;
-    }
-    setParsing(true);
-    setParsedCurriculum(null);
-    try {
-      const res = await fetch('/api/parse-curriculum', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: currText,
-          department: currDept,
-          level: currLevel,
-          semester: currSemester,
-          programType: currProgramType,
-          source: pdfInfo?.source === 'NBTE' || pdfInfo?.source === 'CCMAS' ? pdfInfo.source : currProgramType
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Server error parsing curriculum');
-      if (!data.courses?.length) {
-        toast.error('No courses found. Try pasting a more complete section of the curriculum PDF.');
-        return;
-      }
-      setParsedCurriculum(data);
-      toast.success(`Found ${data.courses.length} courses! Review below and save.`);
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to parse curriculum');
-    } finally {
-      setParsing(false);
-    }
-  };
-
-  const handleSaveCurriculum = async () => {
-    if (!parsedCurriculum?.courses?.length) return;
-    setSavingCurriculum(true);
-    try {
-      let totalTopics = 0;
-      for (const course of parsedCurriculum.courses) {
-        const courseLevel = course.level || currLevel;
-        const courseSemester = course.semester === 1 || course.semester === 2
-          ? course.semester
-          : currProgramType === 'NBTE' && (!pdfInfo || pdfInfo.detectedSemesters.length <= 1)
-            ? currSemester
-            : undefined;
-        const safeCode = course.code.replace(/[^a-zA-Z0-9]/g, '');
-        const docId = `${currDept.replace(/[^a-zA-Z0-9]/g, '')}-${courseLevel.replace(/[^a-zA-Z0-9]/g, '')}-s${courseSemester ?? 'all'}-${safeCode}`.toLowerCase();
-        const courseRef = doc(db, 'courses', docId);
-        const coursePayload: Record<string, any> = {
-          code: course.code.trim().toUpperCase(),
-          title: course.title.trim(),
-          school: currProgramType,
-          department: currDept,
-          level: courseLevel,
-          credit_units: course.credit_units || 2,
-          program_type: currProgramType === 'NBTE' ? 'polytechnic' : 'university',
-          source: currProgramType,
-          description: `${course.title} — ${currDept}, ${courseLevel}${courseSemester ? `, Semester ${courseSemester}` : ''}`,
-          createdAt: new Date().toISOString()
-        };
-        if (courseSemester) {
-          coursePayload.semester = courseSemester;
-        }
-        await setDoc(courseRef, coursePayload, { merge: true });
-
-        if (course.topics?.length) {
-          const batch = writeBatch(db);
-          const topicsRef = collection(db, `courses/${docId}/topics`);
-          course.topics.forEach((topic: any, idx: number) => {
-            const safeTitle = topic.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 40);
-            const topicId = `${topic.chapter_order || 1}-${idx + 1}-${safeTitle}`;
-            const topicRef = doc(topicsRef, topicId);
-            batch.set(topicRef, {
-              title: topic.title,
-              chapter: topic.chapter || 'General Topics',
-              chapter_order: topic.chapter_order || 1,
-              order: topic.order || idx + 1,
-              estimated_minutes: 10,
-              createdAt: new Date().toISOString()
-            }, { merge: true });
-            totalTopics++;
-          });
-          await batch.commit();
-        }
-      }
-      toast.success(`✅ Saved ${parsedCurriculum.courses.length} courses with ${totalTopics} topics!`);
-      setParsedCurriculum(null);
-      setCurrText('');
-      setCurrFile(null);
-      setPdfInfo(null);
-    } catch (e: any) {
-      console.error('Save curriculum error:', e);
-      toast.error(e.message || 'Failed to save curriculum');
-    } finally {
-      setSavingCurriculum(false);
-    }
-  };
-
-  const handleCurriculumPdfUpload = async (file?: File) => {
-    if (!file) return;
-    setCurrFile(file);
-    setExtractingPdf(true);
-    setParsedCurriculum(null);
-    try {
-      const extracted = await extractCurriculumPdf(file);
-      setPdfInfo(extracted);
-      setCurrText(extracted.text);
-
-       if (extracted.source === 'CCMAS') {
-         setCurrFile(null);
-         setPdfInfo(null);
-         setCurrText('');
-         toast.error('University/CCMAS importing is not enabled yet. Please upload an NBTE polytechnic curriculum.');
-         return;
-       }
-       if (extracted.source === 'NBTE') {
-         setCurrProgramType('NBTE');
-      }
-      if (extracted.suggestedDepartment) {
-        const departmentMatch = (extracted.source === 'NBTE' ? POLYTECHNIC_DEPARTMENTS : [...POLYTECHNIC_DEPARTMENTS, 'Computer Science'])
-          .find(dept => dept.toLowerCase() === extracted.suggestedDepartment?.toLowerCase());
-        if (departmentMatch) setCurrDept(departmentMatch);
-      }
-      if (extracted.detectedLevels.length === 1) {
-        setCurrLevel(extracted.detectedLevels[0]);
-      }
-      if (extracted.detectedSemesters.length === 1) {
-        setCurrSemester(extracted.detectedSemesters[0] as 1 | 2);
-      }
-      toast.success(`Extracted text from ${extracted.pageCount} pages. Review it below before parsing.`);
-    } catch (error: any) {
-      setCurrFile(null);
-      setPdfInfo(null);
-      toast.error(error.message || 'Could not extract text from this PDF');
-    } finally {
-      setExtractingPdf(false);
-    }
-  };
-
-  const clearCurriculumPdf = () => {
-    setCurrFile(null);
-    setPdfInfo(null);
-    setCurrText('');
-    setParsedCurriculum(null);
-  };
-
   if (!user?.is_admin) return null;
 
   return (
@@ -632,18 +470,6 @@ export default function Admin() {
           >
             <Crown size={16} className={activeTab === 'payments' ? "text-white" : "text-amber-500"} />
             Verify Payments
-          </button>
-
-          <button
-            onClick={() => setActiveTab('curriculum')}
-            className={`flex-1 min-w-[100px] py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold transition-all ${
-              activeTab === 'curriculum'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
-            }`}
-          >
-            <FileDown size={16} />
-            Import Curriculum
           </button>
 
           <button
@@ -1089,201 +915,6 @@ export default function Admin() {
                     );
                   });
                 })()}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Curriculum Import */}
-        {activeTab === 'curriculum' && (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm space-y-5">
-            <div>
-              <h2 className="text-xl font-black text-zinc-900 dark:text-white">Import Curriculum PDF</h2>
-              <p className="text-xs text-zinc-500 mt-1">
-                 Upload an official NBTE polytechnic PDF. Kortex extracts its selectable text in your browser first, then DeepSeek organizes ND and HND courses into topics.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/20 p-5">
-              <input
-                id="curriculumPdfInput"
-                type="file"
-                accept="application/pdf,.pdf"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  void handleCurriculumPdfUpload(file);
-                  e.currentTarget.value = '';
-                }}
-              />
-              {!currFile ? (
-                <label htmlFor="curriculumPdfInput" className="flex flex-col items-center justify-center gap-2 cursor-pointer text-center">
-                  <span className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
-                    <FileUp size={23} />
-                  </span>
-                  <span className="font-black text-sm text-blue-950 dark:text-blue-100">Choose curriculum PDF</span>
-                   <span className="text-[11px] text-blue-700/70 dark:text-blue-300/70">Supports long text-based ND and HND curriculum documents</span>
-                </label>
-              ) : (
-                <div className="flex items-start gap-3">
-                  <span className="w-10 h-10 shrink-0 rounded-xl bg-white dark:bg-zinc-900 text-blue-600 flex items-center justify-center border border-blue-100 dark:border-blue-900">
-                    {extractingPdf ? <Loader2 size={19} className="animate-spin" /> : <FileText size={19} />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-black text-sm text-zinc-900 dark:text-white truncate">{currFile.name}</p>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">
-                      {extractingPdf ? 'Extracting selectable text locally…' : pdfInfo ? `${pdfInfo.pageCount} pages · ${Math.round(pdfInfo.text.length / 1000)}k characters extracted` : 'Preparing PDF…'}
-                    </p>
-                  </div>
-                  {!extractingPdf && (
-                    <button type="button" onClick={clearCurriculumPdf} className="p-2 rounded-lg hover:bg-white/70 dark:hover:bg-zinc-900 text-zinc-500" title="Remove PDF">
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {pdfInfo && (
-              <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Extraction complete</p>
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white mt-1">
-                      {pdfInfo.source === 'unknown' ? 'Curriculum type not detected' : `${pdfInfo.source} curriculum detected`}
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => void handleCurriculumPdfUpload(currFile!)} disabled={extractingPdf} className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                    <RotateCcw size={13} /> Re-extract
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
-                  <span className="px-2 py-1 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">{pdfInfo.pageCount} pages</span>
-                  {pdfInfo.detectedLevels.map(item => <span key={item} className="px-2 py-1 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">{item}</span>)}
-                  {pdfInfo.detectedSemesters.map(item => <span key={item} className="px-2 py-1 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">Semester {item}</span>)}
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Department</label>
-                <select value={currDept} onChange={e => setCurrDept(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 h-11 appearance-none">
-                  {(currProgramType === 'NBTE' ? POLYTECHNIC_DEPARTMENTS : STANDARD_DEPARTMENTS).map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Level</label>
-                <select value={currLevel} onChange={e => setCurrLevel(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 h-11 appearance-none">
-                  {(currProgramType === 'NBTE' ? POLYTECHNIC_LEVELS : UNIVERSITY_LEVELS).map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Semester</label>
-                <select value={currSemester} onChange={e => setCurrSemester(Number(e.target.value) as 1 | 2)} disabled={currProgramType === 'CCMAS'} className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 h-11 appearance-none disabled:opacity-60">
-                  {currProgramType === 'CCMAS' ? (
-                    <option value={1}>Not applicable — level-based</option>
-                  ) : (
-                    <>
-                      <option value={1}>1st Semester</option>
-                      <option value={2}>2nd Semester</option>
-                    </>
-                  )}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Curriculum Source</label>
-                <select
-                  value={currProgramType}
-                  onChange={e => {
-                    const nextSource = e.target.value as 'NBTE' | 'CCMAS';
-                    setCurrProgramType(nextSource);
-                    setCurrDept(nextSource === 'NBTE' ? 'Computer Science' : 'Computer Science');
-                    setCurrLevel(nextSource === 'NBTE' ? 'ND1' : '100 Level');
-                  }}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 h-11 appearance-none"
-                >
-                  <option value="NBTE">NBTE — Polytechnic</option>
-                  <option value="CCMAS" disabled>CCMAS — University (coming later)</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between gap-3 mb-1">
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Extracted Curriculum Text</label>
-                <span className="text-[10px] font-mono text-zinc-400">{currText.length.toLocaleString()} chars</span>
-              </div>
-              <textarea
-                value={currText}
-                onChange={e => setCurrText(e.target.value)}
-                rows={12}
-                placeholder="Upload a PDF above, or paste extracted curriculum text here."
-                className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-xs text-zinc-900 dark:text-white font-mono resize-y outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-[10px] text-zinc-400 mt-1">You can edit the extracted text before parsing if the PDF has a title or section you want to remove.</p>
-            </div>
-
-            <button
-              onClick={handleParseCurriculum}
-              disabled={parsing || extractingPdf || !currText.trim()}
-              className="w-full py-3.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
-            >
-              {parsing ? (
-                <><Loader2 size={16} className="animate-spin" /> Extracting with DeepSeek AI...</>
-              ) : (
-                <><FileDown size={16} /> Extract Courses and Topics with AI</>
-              )}
-            </button>
-
-            {parsedCurriculum && (
-              <div className="space-y-4 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <h3 className="font-black text-zinc-900 dark:text-white text-base">
-                      {parsedCurriculum.courses?.length} course{parsedCurriculum.courses?.length !== 1 ? 's' : ''} found
-                    </h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">Review below, then save to the student library.</p>
-                  </div>
-                  <button
-                    onClick={handleSaveCurriculum}
-                    disabled={savingCurriculum}
-                    className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {savingCurriculum ? (
-                      <><Loader2 size={14} className="animate-spin" /> Saving...</>
-                    ) : (
-                      <>Save {parsedCurriculum.courses?.length} Courses to Library</>
-                    )}
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {parsedCurriculum.courses?.map((course: any, i: number) => (
-                    <div key={i} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-zinc-700">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
-                          <span className="font-mono text-[10px] font-black text-zinc-400 uppercase tracking-widest">{course.code}</span>
-                          <p className="font-black text-zinc-900 dark:text-white text-sm mt-0.5">{course.title}</p>
-                        </div>
-                        <span className="text-[10px] font-black bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0">
-                          {course.credit_units || 2} units · {course.topics?.length || 0} topics
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {course.topics?.slice(0, 6).map((t: any, j: number) => (
-                          <span key={j} className="text-[10px] font-medium bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 px-2 py-0.5 rounded-full">
-                            {t.title.length > 35 ? t.title.substring(0, 35) + '…' : t.title}
-                          </span>
-                        ))}
-                        {(course.topics?.length ?? 0) > 6 && (
-                          <span className="text-[10px] font-medium text-zinc-400 px-1 py-0.5">
-                            +{course.topics.length - 6} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
           </div>

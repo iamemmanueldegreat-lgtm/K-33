@@ -13,13 +13,11 @@ const Type = {
   BOOLEAN: "boolean",
 } as const;
 
-// Lazy-loaded DeepSeek client
+// Lazy-loaded DeepSeek Client for full-stack API safety
 let openaiClient: OpenAI | null = null;
 let lastApiKey: string | null = null;
 
-const DEEPSEEK_MODEL = "deepseek-chat";
-
-function getDeepSeekClient(): any {
+function getGeminiClient(): any {
   const dsKey = process.env.DEEPSEEK_API_KEY;
 
   if (!dsKey) {
@@ -36,7 +34,7 @@ function getDeepSeekClient(): any {
   return {
     models: {
       generateContent: async (args: any) => {
-        let messages: any[] = [];
+        let messages = [];
         let systemInstruction = "";
         
         if (args.config && args.config.systemInstruction) {
@@ -58,13 +56,13 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         }
         messages.push({ role: "user", content: args.contents });
         
-        let response_format: any;
+        let response_format;
         if (args.config && (args.config.responseMimeType === "application/json" || args.config.responseSchema)) {
           response_format = { type: "json_object" };
         }
 
         const res = await openaiClient!.chat.completions.create({
-          model: DEEPSEEK_MODEL,
+          model: "deepseek-chat",
           messages,
           response_format,
         });
@@ -74,7 +72,7 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         };
       },
       generateContentStream: async (args: any) => {
-        let messages: any[] = [];
+        let messages = [];
         if (args.config && args.config.systemInstruction) {
           messages.push({ role: "system", content: args.config.systemInstruction });
         }
@@ -85,7 +83,7 @@ Ensure you output ONLY a valid stringified JSON object containing exactly the re
         }
         
         const stream = await openaiClient!.chat.completions.create({
-          model: DEEPSEEK_MODEL,
+          model: "deepseek-chat",
           messages,
           stream: true
         });
@@ -164,85 +162,6 @@ function parseJsonSafe(text: string): any {
     }
     throw err;
   }
-}
-
-function detectCurriculumSource(text: string, requestedSource?: string): "NBTE" | "CCMAS" {
-  if (requestedSource === "NBTE" || requestedSource === "CCMAS") {
-    return requestedSource;
-  }
-  const upper = text.toUpperCase();
-  return upper.includes("NATIONAL BOARD FOR TECHNICAL EDUCATION") ||
-    upper.includes("NATIONAL DIPLOMA") ||
-    upper.includes("HIGHER NATIONAL DIPLOMA") ||
-    /\bHND\b/.test(upper)
-    ? "NBTE"
-    : "CCMAS";
-}
-
-function extractCourseSpecificationBlocks(text: string, source: "NBTE" | "CCMAS") {
-  const codePattern = /(?:course\s+code|subject\/course|course\s+code\s*:?)\s*:?\s*([A-Z]{2,4}\s*\d{3})/gi;
-  const matches = Array.from(text.matchAll(codePattern));
-  const seen = new Set<string>();
-  const blocks: string[] = [];
-
-  for (let index = 0; index < matches.length; index += 1) {
-    const rawCode = matches[index][1].replace(/\s+/g, " ").trim().toUpperCase();
-    if (seen.has(rawCode)) continue;
-    const start = matches[index].index ?? 0;
-    const nextStart = matches[index + 1]?.index ?? text.length;
-    const block = text.slice(start, nextStart).trim();
-    if (block.length < 80) continue;
-    seen.add(rawCode);
-    blocks.push(block.slice(0, source === "NBTE" ? 5500 : 4500));
-  }
-
-  return blocks;
-}
-
-function prepareCurriculumForParsing(text: string, source: "NBTE" | "CCMAS") {
-  const pageStart = (page: number) => text.indexOf(`===== PAGE ${page} =====`);
-
-  if (source === "CCMAS") {
-    const computerScienceMatches = Array.from(text.matchAll(/B\.Sc\. Computer Science/gi));
-    const computerScienceStart = computerScienceMatches.length > 1
-      ? computerScienceMatches[1].index ?? text.indexOf("B.Sc. Computer Science")
-      : text.indexOf("B.Sc. Computer Science");
-    const cybersecurityStart = text.indexOf("B.Sc. Cybersecurity", computerScienceStart + 1);
-    const section = computerScienceStart >= 0
-      ? text.slice(computerScienceStart, cybersecurityStart > computerScienceStart ? cybersecurityStart : text.length)
-      : text;
-    const structureStart = section.indexOf("Global Course Structure");
-    const detailsStart = section.indexOf("Course Contents and Learning Outcomes");
-    const structureEnd = detailsStart > structureStart ? detailsStart : section.length;
-    const details = detailsStart >= 0 ? section.slice(detailsStart) : section;
-    return {
-      sourceText: section.slice(structureStart >= 0 ? structureStart : 0, structureEnd).slice(0, 60000),
-      courseBlocks: extractCourseSpecificationBlocks(details, source),
-      note: "This is a CCMAS Computing document. Use the B.Sc. Computer Science programme section only; ignore Cybersecurity, Data Science, Information Systems, and unrelated programmes."
-    };
-  }
-
-  const tableStart = pageStart(8);
-  const detailStart = pageStart(12);
-  const tables = tableStart >= 0
-    ? text.slice(tableStart, detailStart > tableStart ? detailStart : text.length).slice(0, 45000)
-    : text.slice(0, 45000);
-  const detailText = detailStart >= 0 ? text.slice(detailStart) : text;
-  const detailBlocks = extractCourseSpecificationBlocks(detailText, source);
-
-  return {
-    sourceText: tables,
-    courseBlocks: detailBlocks,
-    note: "This is an NBTE polytechnic curriculum. It may contain ND1/ND2 and/or HND1/HND2 course structures. Use the official year/level and semester tables to identify courses, then use the matching course specification blocks to extract learning objectives and topics. Preserve HND courses when present, and do not treat weekly lesson-plan rows as separate courses."
-  };
-}
-
-function chunkCurriculumBlocks(blocks: string[], maxBlocks = 7) {
-  const chunks: string[][] = [];
-  for (let index = 0; index < blocks.length; index += maxBlocks) {
-    chunks.push(blocks.slice(index, index + maxBlocks));
-  }
-  return chunks.length ? chunks : [[]];
 }
 
 function cleanAndValidateQuestions(questions: any[]): any[] {
@@ -573,9 +492,6 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
 async function createApp() {
   const app = express();
 
-  // Trust the Replit proxy so express-rate-limit gets the real client IP
-  app.set('trust proxy', 1);
-
   // Middleware to log requests
   app.use((req, res, next) => {
     console.log(`[Express] Received ${req.method} ${req.url}`);
@@ -615,20 +531,21 @@ async function createApp() {
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     const dsKey = process.env.DEEPSEEK_API_KEY;
+    const gemKey = process.env.GEMINI_API_KEY;
     res.json({
       status: "ok",
-      ai: dsKey ? "connected" : "missing_key",
-      provider: dsKey ? "deepseek" : "none",
+      ai: (dsKey || gemKey) ? "connected" : "missing_key",
+      provider: dsKey ? "deepseek" : gemKey ? "gemini" : "none",
       timestamp: new Date().toISOString()
     });
   });
 
-  // API Diagnostics Route
+  // API Diagnostics Route using Gemini
   app.get("/api/diagnostics", async (req, res) => {
     const results: any = {
       timestamp: new Date().toISOString(),
       keys: {},
-      aiTests: {}
+      geminiTests: {}
     };
 
     const maskKey = (key: string | undefined) => {
@@ -637,24 +554,25 @@ async function createApp() {
       return `${key.slice(0, 4)}...${key.slice(-4)} (length: ${key.length})`;
     };
 
-    const dsKey = process.env.DEEPSEEK_API_KEY;
-    results.keys.deepseek = { status: dsKey ? "PRESENT" : "MISSING", mask: maskKey(dsKey) };
+    const gemKey = process.env.DEEPSEEK_API_KEY || process.env.GEMINI_API_KEY;
+    results.keys.gemini = { status: gemKey ? "PRESENT" : "MISSING", mask: maskKey(gemKey) };
 
     try {
-      if (!dsKey) {
-        results.aiTests[DEEPSEEK_MODEL] = { success: false, error: "DEEPSEEK_API_KEY is not set" };
+      if (!gemKey) {
+        results.geminiTests["deepseek-chat"] = { success: false, error: "Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is set" };
       } else {
-        const ai = getDeepSeekClient();
+        const ai = getGeminiClient();
         const testRes = await ai.models.generateContent({
+          model: "deepseek-chat",
           contents: "Hello, respond with exactly 'OK_TEST'",
         });
-        results.aiTests[DEEPSEEK_MODEL] = {
+        results.geminiTests["deepseek-chat"] = {
           success: true,
           response: testRes.text?.trim()
         };
       }
     } catch (err: any) {
-      results.aiTests[DEEPSEEK_MODEL] = {
+      results.geminiTests["deepseek-chat"] = {
         success: false,
         error: err.message || err.toString()
       };
@@ -682,8 +600,9 @@ Include:
 5. topics: an array of at least 8 progressive topics for this course. Each topic should have a "title", "chapter" (the module name), "chapter_order", and "order".`;
 
     try {
-      const ai = getDeepSeekClient();
+      const ai = getGeminiClient();
       const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are a professional university curriculum designer. You must return ONLY a valid JSON object matching the requested schema. Do not output conversational preamble or postscript.",
@@ -801,8 +720,9 @@ CRITICAL PRACTICE QUESTIONS INSTRUCTIONS:
 5. The 'explanation' (Retrieval Rationale) MUST be simple, short, and highly direct (strictly 1 or 2 sentences maximum), explaining in a very simple way why the correct option is indeed correct, and why option at correctIndex matches the calculated answer.`;
 
     try {
-      const ai = getDeepSeekClient();
+      const ai = getGeminiClient();
       const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
         contents: prompt,
         config: {
           systemInstruction: systemPrompt,
@@ -893,8 +813,9 @@ Avoid text in the image. Keep it professional, clean and educational.
 Output ONLY the short prompt string.`;
 
     try {
-      const ai = getDeepSeekClient();
+      const ai = getGeminiClient();
       const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
         contents: prompt,
       });
       const promptText = response.text?.trim() || `educational illustration for ${title} ${department}`;
@@ -920,8 +841,9 @@ CRITICAL INSTRUCTIONS FOR ACCURACY:
 5. The 'explanation' (Retrieval Rationale) MUST be simple, short, and highly direct (strictly 1 or 2 sentences maximum), explaining in a very simple way why the correct option is indeed correct, and why option at correctIndex matches the calculated answer.
 6. MANDATORY UNIQUE QUESTIONS: Every single one of the ${numQuestions || 5} questions MUST be completely unique, distinct, and high-quality. Do NOT generate duplicate questions or minor phrasing variations of the same test question. Choose different key definitions, core equations, operational mechanics, features, and use-cases of "${topicTitle}" to verify the student's concept recall broadly and deeply.`;
 
-      const ai = getDeepSeekClient();
+      const ai = getGeminiClient();
       const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are a professional academic test designer. You must return ONLY a JSON object containing a 'questions' array. No commentary.",
@@ -993,8 +915,9 @@ STUDENT'S FOLLOW-UP QUESTION:
 Task:
 Answer the student's question clearly, thoroughly, and encouragingly in 2 to 4 sentences. Explain the solution to help them understand the concept deeply.`;
 
-      const ai = getDeepSeekClient();
+      const ai = getGeminiClient();
       const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
         contents: prompt
       });
 
@@ -1172,10 +1095,14 @@ When the user asks questions or raises issues, prioritize referencing, explainin
         }
       }
 
-      console.log(`Chat API: Streaming response via DeepSeek (${DEEPSEEK_MODEL})`);
+      // Map models: pro -> 'gemini-1.5-flash', flash -> 'gemini-1.5-flash'
+      const activeModel = model === 'pro' ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
 
-      const ai = getDeepSeekClient();
+      console.log(`Chat API: Streaming response via model: ${activeModel}`);
+
+      const ai = getGeminiClient();
       const responseStream = await ai.models.generateContentStream({
+        model: activeModel,
         contents: chatMessages,
         config: {
           systemInstruction
@@ -1193,144 +1120,11 @@ When the user asks questions or raises issues, prioritize referencing, explainin
       res.write("data: [DONE]\n\n");
       return res.end();
     } catch (error: any) {
-      console.log(`Chat API streaming hit API limitations. Sending supportive fallback message: ${error.message || error}`);
-      const fallbackText = "Hello! I am Kortex AI. I noticed that we have temporarily reached our high-speed cloud service rate limits, but don't worry! I'm still here to support you in offline local student helper mode.\n\nHow can I help you today? You can ask me study questions, request course outlines, or let me know what topic you are working on!";
+      console.log(`Chat API streaming failed: ${error.message || error}`);
+      const fallbackText = "Something went wrong\nWe couldn't complete your request right now. Please try again in a few moments.";
       res.write(`data: ${JSON.stringify({ text: fallbackText })}\n\n`);
       res.write("data: [DONE]\n\n");
       return res.end();
-    }
-  });
-
-  // Curriculum PDF parsing — extracts structured courses + topics from curriculum text
-  app.post("/api/parse-curriculum", async (req, res) => {
-    const { text, department, level, semester, programType, source: requestedSource } = req.body;
-    if (!text?.trim()) {
-      return res.status(400).json({ error: "Extracted curriculum text is required" });
-    }
-
-    const source = detectCurriculumSource(text, requestedSource || programType);
-    const prepared = prepareCurriculumForParsing(text, source);
-    const selectedDepartment = department || (source === "NBTE" ? "Computer Science" : "Computer Science");
-    const selectedLevel = level || (source === "NBTE" ? "ND1" : "100 Level");
-    const selectedSemester = source === "NBTE" ? (semester || 1) : null;
-    const structureText = prepared.sourceText.slice(0, 65000);
-    const batches = chunkCurriculumBlocks(prepared.courseBlocks, source === "CCMAS" ? 6 : 5);
-
-    try {
-      const ai = getDeepSeekClient();
-      const extractedCourses: any[] = [];
-
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-        const courseBlocks = batches[batchIndex]
-          .join("\n\n--- COURSE SPECIFICATION ---\n\n")
-          .slice(0, 36000);
-        const prompt = `You are an expert Nigerian curriculum archivist. Parse one batch of an official ${source} curriculum PDF.
-
-DOCUMENT RULES:
-${prepared.note}
-- Preserve official course codes and titles exactly; do not invent courses.
-- The course structure text is authoritative for course units, levels, and semesters.
-- Only return courses represented by the specification excerpts in THIS BATCH.
-- Use the specification excerpts to extract actual general objectives, theoretical contents, practical contents, learning outcomes, and assessment topics.
-- Ignore table totals, prerequisites, page numbers, repeated headers/footers, admissions prose, and unrelated programmes.
-- Do not return duplicate courses unless the excerpts contain genuinely different level/semester offerings.
-- A course may have an empty topics array only when no teachable content is present in its excerpt.
-
-IMPORT CONTEXT:
-- Department: "${selectedDepartment}"
-- Default level if a course row does not state one: "${selectedLevel}"
-- Default semester if a course row does not state one: ${selectedSemester ?? "not applicable for this CCMAS level-based structure"}
-
-COURSE STRUCTURE / RELEVANT PDF TEXT:
-"""
-${structureText}
-"""
-
-SPECIFICATION EXCERPTS FOR THIS BATCH:
-"""
-${courseBlocks}
-"""
-
-Return ONLY valid JSON:
-{
-  "courses": [
-    {
-      "code": "COM 111",
-      "title": "Introduction to Computing",
-      "level": "ND1",
-      "semester": ${selectedSemester ?? "null"},
-      "credit_units": 3,
-      "topics": [
-        { "title": "History and Evolution of Computers", "chapter": "Foundations of Computing", "chapter_order": 1, "order": 1 }
-      ]
-    }
-  ]
-}
-
-Allowed levels: ND1, ND2, HND1, HND2, 100 Level, 200 Level, 300 Level, 400 Level.
-For CCMAS, leave semester null unless the excerpt explicitly provides a semester.`;
-
-        const response = await ai.models.generateContent({
-          contents: prompt,
-          config: {
-            systemInstruction: "Extract only official Nigerian curriculum data from the provided text. Return valid JSON and never invent missing courses.",
-            responseMimeType: "application/json"
-          }
-        });
-        const parsedBatch = parseJsonSafe(response.text || "{}");
-        if (Array.isArray(parsedBatch?.courses)) {
-          extractedCourses.push(...parsedBatch.courses);
-        }
-      }
-
-      const mergedCourses = new Map<string, any>();
-      for (const course of extractedCourses) {
-        const code = String(course.code || "").replace(/\s+/g, " ").trim().toUpperCase();
-        const title = String(course.title || "").replace(/\s+/g, " ").trim();
-        if (!code || !title) continue;
-
-        const courseLevel = course.level || selectedLevel;
-        const courseSemester = source === "NBTE" && (course.semester === 1 || course.semester === 2)
-          ? course.semester
-          : source === "NBTE" ? selectedSemester : null;
-        const key = `${code}|${courseLevel}|${courseSemester ?? "all"}`;
-        const existing = mergedCourses.get(key);
-        const incomingTopics = Array.isArray(course.topics) ? course.topics : [];
-
-        if (!existing) {
-          mergedCourses.set(key, {
-            code,
-            title,
-            level: courseLevel,
-            semester: courseSemester,
-            credit_units: Number(course.credit_units) || 2,
-            topics: incomingTopics
-          });
-          continue;
-        }
-
-        const topicKeys = new Set((existing.topics || []).map((topic: any) => String(topic.title || "").toLowerCase()));
-        for (const topic of incomingTopics) {
-          const topicKey = String(topic.title || "").toLowerCase();
-          if (topicKey && !topicKeys.has(topicKey)) {
-            existing.topics.push(topic);
-            topicKeys.add(topicKey);
-          }
-        }
-        existing.credit_units = existing.credit_units || Number(course.credit_units) || 2;
-      }
-
-      const courses = Array.from(mergedCourses.values());
-      return res.json({
-        source,
-        department: selectedDepartment,
-        detectedSections: prepared.courseBlocks.length,
-        batches: batches.length,
-        courses
-      });
-    } catch (error: any) {
-      console.error("Curriculum parsing error:", error);
-      return res.status(500).json({ error: error.message || "Failed to parse curriculum" });
     }
   });
 
@@ -1338,19 +1132,14 @@ For CCMAS, leave semester null unless the excerpt explicitly provides a semester
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        allowedHosts: true as any,
-        hmr: false,
-        ws: false,
-      },
+      server: { middlewareMode: true, allowedHosts: true as any },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get(/^(?!\/api).*/, (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
@@ -1368,27 +1157,15 @@ For CCMAS, leave semester null unless the excerpt explicitly provides a semester
 async function runStartupDiagnostics() {
   console.log("\n=================== STARTUP DIAGNOSTICS ===================");
   const dsKey = process.env.DEEPSEEK_API_KEY;
+  const gemKey = process.env.GEMINI_API_KEY;
   console.log(`[DIAG] DEEPSEEK_API_KEY: ${dsKey ? "PRESENT (" + dsKey.slice(0, 4) + "..." + dsKey.slice(-4) + ")" : "MISSING"}`);
-
-  if (dsKey) {
-    try {
-      console.log(`[DIAG] Testing DeepSeek API with model: ${DEEPSEEK_MODEL}...`);
-      const ai = getDeepSeekClient();
-      const testRes = await ai.models.generateContent({
-        contents: "Say 'DeepSeek OK'",
-      });
-      console.log(`[DIAG] DeepSeek response: "${testRes.text?.trim()}"`);
-    } catch (e: any) {
-      console.error(`[DIAG] DeepSeek connection failure: ${e.message || e}`);
-    }
-  } else {
-    console.log("[DIAG] Warning: DEEPSEEK_API_KEY is not defined. AI interactions will fail.");
-  }
+  console.log(`[DIAG] GEMINI_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
+  console.log(`[DIAG] Active Key Source: ${dsKey ? "DEEPSEEK_API_KEY" : (gemKey ? "GEMINI_API_KEY (Fallback for DeepSeek)" : "NONE")}`);
   console.log("===================================================================\n");
 }
 
 async function startServer() {
-  const PORT = parseInt(process.env.PORT || "8080", 10);
+  const PORT = 3000;
   const app = await createApp();
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

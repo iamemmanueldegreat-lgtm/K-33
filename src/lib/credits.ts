@@ -1,44 +1,44 @@
 import { db } from './firebase';
-import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import type { UserProfile } from '../types';
 
-export const FREE_LIMITS = {
-  CHAT_MESSAGES: 10,
-  TOPICS: 2,
+export const AI_CREDIT_COSTS = {
+  STUDY_GENERATION: 20,
+  QUIZ_GENERATION: 15,
+  ASK_AI: 5,
+  CHAT_MESSAGE: 3,
 } as const;
 
-export function getFreeChatUsed(user: UserProfile | null): number {
-  return user?.free_chat_used ?? 0;
+export const AI_DAILY_LIMITS = {
+  FREE: 50,
+  PRO: 200,
+} as const;
+
+export function getDailyLimit(user: UserProfile | null): number {
+  return user?.is_pro ? AI_DAILY_LIMITS.PRO : AI_DAILY_LIMITS.FREE;
 }
 
-export function getFreeTopicsUnlocked(user: UserProfile | null): string[] {
-  return user?.free_topics_unlocked ?? [];
+export function getTodayStr(): string {
+  return new Date().toISOString().split('T')[0];
 }
 
-export function canSendChat(user: UserProfile | null): boolean {
-  if (user?.is_pro) return true;
-  return getFreeChatUsed(user) < FREE_LIMITS.CHAT_MESSAGES;
+export function getCreditsUsedToday(user: UserProfile | null): number {
+  const today = getTodayStr();
+  return user?.ai_credits_used?.[today] ?? 0;
 }
 
-export function canUnlockTopic(user: UserProfile | null, topicId: string): boolean {
-  if (user?.is_pro) return true;
-  const unlocked = getFreeTopicsUnlocked(user);
-  return unlocked.includes(topicId) || unlocked.length < FREE_LIMITS.TOPICS;
+export function getCreditsRemaining(user: UserProfile | null): number {
+  return Math.max(0, getDailyLimit(user) - getCreditsUsedToday(user));
 }
 
-export function isTopicUnlocked(user: UserProfile | null, topicId: string): boolean {
-  if (user?.is_pro) return true;
-  return getFreeTopicsUnlocked(user).includes(topicId);
+export function canAffordCredits(user: UserProfile | null, cost: number): boolean {
+  return getCreditsRemaining(user) >= cost;
 }
 
-export async function spendChatCredit(userId: string): Promise<void> {
+export async function spendCredits(userId: string, user: UserProfile, cost: number): Promise<void> {
+  const today = getTodayStr();
+  const currentUsed = user.ai_credits_used?.[today] ?? 0;
   await updateDoc(doc(db, 'users', userId), {
-    free_chat_used: increment(1),
-  });
-}
-
-export async function unlockTopic(userId: string, topicId: string): Promise<void> {
-  await updateDoc(doc(db, 'users', userId), {
-    free_topics_unlocked: arrayUnion(topicId),
+    [`ai_credits_used.${today}`]: currentUsed + cost,
   });
 }

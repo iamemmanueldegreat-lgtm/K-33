@@ -1,12 +1,10 @@
 modules = ["nodejs-20", "web"]
+[agent]
+expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
 
-[deployment]
-router = "application"
-deploymentTarget = "autoscale"
-
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+[nix]
+channel = "stable-25_05"
 
 [workflows]
 runButton = "Project"
@@ -27,18 +25,20 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
-waitForPort = 8080
+waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[agent]
-stack = "PNPM_WORKSPACE"
-expertMode = true
+[[ports]]
+localPort = 5000
+externalPort = 5000
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
+[[ports]]
+localPort = 24678
+externalPort = 80
 
-[nix]
-channel = "stable-25_05"
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "dist/server.cjs"]
+build = ["npm", "run", "build"]

@@ -29,9 +29,13 @@
       window.deferredPrompt = null;
       
       window.addEventListener('beforeinstallprompt', (e) => {
-        // Let the browser show its native install UI
+        // Prevent default browser banner
+        e.preventDefault();
+        // Save the event to trigger late
         window.deferredPrompt = e;
-        console.log('[PWA] beforeinstallprompt caught');
+        // Notify React components in real-time
+        window.dispatchEvent(new Event('beforeinstallprompt-ready'));
+        console.log('[PWA] beforeinstallprompt caught and cached');
       });
 
       window.addEventListener('appinstalled', (e) => {
