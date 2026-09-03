@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Book, Zap, Clock, Trophy, ChevronRight, BarChart2, MessageSquare, BookOpen, Crown, Sparkles } from 'lucide-react';
-import { getCreditsRemaining, getDailyLimit } from '../lib/credits';
+import { Book, Zap, Clock, Trophy, ChevronRight, BarChart2, MessageSquare, BookOpen, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, limit, getDocs, getDoc, doc, orderBy, onSnapshot } from 'firebase/firestore';
+import { isPolytechnic } from '../lib/constants';
 import ThemeToggle from '../components/ThemeToggle';
 import type { Course, Topic } from '../types';
 import LoadingScreen, { LoadingSpinner } from '../components/LoadingScreen';
@@ -13,8 +13,6 @@ import LoadingScreen, { LoadingSpinner } from '../components/LoadingScreen';
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const creditsRemaining = getCreditsRemaining(user);
-  const dailyLimit = getDailyLimit(user);
   const root = 'courses';
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [totalAvailableCourses, setTotalAvailableCourses] = useState<number>(0);
@@ -47,11 +45,27 @@ export default function Home() {
         } as Course));
 
         const departments = [user?.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
-        coursesData = coursesData.filter(c => 
-          c.school === user?.school &&
-          departments.includes(c.department) &&
-          (c.level?.replace(/\s+/g, '') === user?.level?.replace(/\s+/g, '') || c.level === 'All Levels' || !c.level)
-        );
+        const isPoly = isPolytechnic(user?.school || '');
+        
+        let activeSchool = user?.school;
+        const hasSpecificSchoolCourses = coursesData.some(c => c.school === user?.school);
+        if (!hasSpecificSchoolCourses) {
+          activeSchool = isPoly ? 'Auchi Polytechnic' : 'University of Benin (UNIBEN)';
+        }
+
+        coursesData = coursesData.filter(c => {
+          const schoolMatch =
+            c.school === activeSchool ||
+            (isPoly && c.school === 'NBTE') ||
+            (!isPoly && c.school === 'CCMAS');
+          return (
+            schoolMatch &&
+            departments.includes(c.department) &&
+            (c.level?.replace(/\s+/g, '') === user?.level?.replace(/\s+/g, '') ||
+              c.level === 'All Levels' ||
+              !c.level)
+          );
+        });
         
         setTotalAvailableCourses(coursesData.length);
         setRecentCourses(coursesData.slice(0, 10));
@@ -76,7 +90,15 @@ export default function Home() {
           return null;
         });
 
-        const continueLearningData = (await Promise.all(continueLearningPromises)).filter(Boolean) as Course[];
+        const rawContinue = (await Promise.all(continueLearningPromises)).filter(Boolean) as Course[];
+        const seenIds = new Set<string>();
+        const continueLearningData: Course[] = [];
+        for (const c of rawContinue) {
+          if (c && !seenIds.has(c.id)) {
+            seenIds.add(c.id);
+            continueLearningData.push(c);
+          }
+        }
         setContinueLearning(continueLearningData);
       }, (error) => {
         console.error("Recent views snapshot error", error);
@@ -187,42 +209,6 @@ export default function Home() {
             );
           })}
         </div>
-      </div>
-
-      {/* AI Credits Today */}
-      <div>
-        <div className="flex items-center justify-between mb-2 px-1">
-          <div className="flex items-center gap-1.5">
-            <Sparkles size={13} className="text-purple-500 dark:text-purple-400" />
-            <span className="text-[10px] font-black text-muted uppercase tracking-widest">AI Credits Today</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-text">{creditsRemaining}/{dailyLimit} left</span>
-            {!user?.is_pro && (
-              <button
-                onClick={() => navigate('/billing')}
-                className="text-[10px] font-black text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-2.5 py-1 rounded-full"
-              >
-                Upgrade
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mx-1">
-          <div
-            className={`h-full rounded-full transition-all duration-700 ${
-              creditsRemaining === 0
-                ? 'bg-red-400'
-                : creditsRemaining < dailyLimit * 0.3
-                ? 'bg-amber-400'
-                : 'bg-[#14333c] dark:bg-teal-500'
-            }`}
-            style={{ width: `${Math.max(2, (creditsRemaining / dailyLimit) * 100)}%` }}
-          />
-        </div>
-        {creditsRemaining === 0 && (
-          <p className="text-[10px] text-muted text-center mt-1.5 px-1">Credits refill at midnight</p>
-        )}
       </div>
 
       {/* Main Action Bento Grid */}

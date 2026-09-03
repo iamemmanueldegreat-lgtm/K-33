@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2, WifiOff, CloudDownload, DownloadCloud, Sparkles, Check, Brain, BookOpen } from 'lucide-react';
+import { ArrowLeft, Menu, X, Search, ChevronRight, LayoutPanelLeft, ChevronDown, CheckCircle2, Check, WifiOff, CloudDownload, DownloadCloud, Sparkles, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { generateStudyContent } from '../lib/gemini';
-import { canAffordCredits, getCreditsRemaining, getDailyLimit, spendCredits, AI_CREDIT_COSTS } from '../lib/credits';
+import { generateStudyContent } from '../lib/api';
+import { canUnlockTopic, unlockTopic } from '../lib/credits';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'react-hot-toast';
@@ -84,14 +84,80 @@ export default function Study() {
       const isOnline = navigator.onLine;
 
       try {
-        // Step 1: Attempt to load from browser Local Storage (the download cache)
+        // Step 1: Attempt to load from browser Local Storage or course_detail cache FIRST
         const localCacheKey = `offline_topic_${topicId}`;
         const localCacheData = localStorage.getItem(localCacheKey);
 
-        // Fetch course details & topics (for sidebar list context if online, fallback from localStorage if offline)
         let courseTitle = courseId;
         let fetchedTopicsList: Topic[] = [];
 
+        // Try reading cached course details synchronously from localStorage
+        const storedCourseDetail = localStorage.getItem(`course_detail_${courseId}`);
+        if (storedCourseDetail) {
+          try {
+            const parsedDetail = JSON.parse(storedCourseDetail);
+            if (parsedDetail.course?.title) courseTitle = parsedDetail.course.title;
+            if (Array.isArray(parsedDetail.topics)) fetchedTopicsList = parsedDetail.topics;
+          } catch (e) {
+            console.warn('Error reading course detail from localStorage', e);
+          }
+        }
+
+        if (fetchedTopicsList.length === 0) {
+          const storedTitle = localStorage.getItem(`offline_course_title_${courseId}`);
+          if (storedTitle) courseTitle = storedTitle;
+
+          const storedTopics = localStorage.getItem(`offline_topics_list_${courseId}`);
+          if (storedTopics) {
+            try { fetchedTopicsList = JSON.parse(storedTopics); } catch (e) {}
+          }
+        }
+
+        setTopics(fetchedTopicsList);
+
+        // Match current topic
+        const cachedTopic = fetchedTopicsList.find(t => t.id === topicId);
+        const topicTitle = cachedTopic ? cachedTopic.title : topicId;
+        setTitles({ course: courseTitle, topic: topicTitle });
+        if (cachedTopic && cachedTopic.chapter) {
+          setCurrentChapter(cachedTopic.chapter);
+        } else {
+          setCurrentChapter('Foundations');
+        }
+
+        // If local offline topic cache exists, render IMMEDIATELY
+        if (localCacheData) {
+          try {
+            const parsedCache = JSON.parse(localCacheData);
+            setContent(parsedCache.content);
+            setKeyTakeaways(parsedCache.key_takeaways || '');
+            setQuizQuestions(parsedCache.quiz_questions || []);
+            setCacheStatus('offline-cached');
+            setLoading(false);
+          } catch (e) {}
+        } else if (cachedTopic && cachedTopic.content) {
+          // Content exists in cached topic! Render IMMEDIATELY
+          setContent(cachedTopic.content);
+          setKeyTakeaways(cachedTopic.key_takeaways || '');
+          let parsedQuestions: any[] = [];
+          if (cachedTopic.quiz_questions) {
+            try {
+              parsedQuestions = typeof cachedTopic.quiz_questions === 'string'
+                ? JSON.parse(cachedTopic.quiz_questions)
+                : cachedTopic.quiz_questions;
+            } catch (pqErr) {}
+          }
+          setQuizQuestions(parsedQuestions);
+          localStorage.setItem(localCacheKey, JSON.stringify({
+            content: cachedTopic.content,
+            key_takeaways: cachedTopic.key_takeaways || '',
+            quiz_questions: parsedQuestions
+          }));
+          setCacheStatus('offline-cached');
+          setLoading(false);
+        }
+
+        // Step 2: In background (or if no cache), fetch fresh data from Firestore if online
         if (isOnline) {
           try {
             const courseDoc = await getDoc(doc(db, root, courseId));
@@ -103,52 +169,34 @@ export default function Study() {
             
             const topicsSnapshot = await getDocs(collection(db, `${root}/${courseId}/topics`));
             if (!active) return;
-            fetchedTopicsList = topicsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Topic));
-            localStorage.setItem(`offline_topics_list_${courseId}`, JSON.stringify(fetchedTopicsList));
+            const freshTopics = topicsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Topic));
+            if (freshTopics.length > 0) {
+              fetchedTopicsList = freshTopics;
+              setTopics(freshTopics);
+              localStorage.setItem(`offline_topics_list_${courseId}`, JSON.stringify(freshTopics));
+              localStorage.setItem(`course_detail_${courseId}`, JSON.stringify({ course: { id: courseId, title: courseTitle }, topics: freshTopics }));
+            }
           } catch (fireErr) {
-            console.warn("Firestore fetch error, attempting local storage fallback for sidebar", fireErr);
+            console.warn("Firestore fetch error, using local storage fallback", fireErr);
           }
         }
 
         if (!active) return;
 
-        // Sidebar Fallback for fully offline mode
-        if (fetchedTopicsList.length === 0) {
-          const storedTitle = localStorage.getItem(`offline_course_title_${courseId}`);
-          if (storedTitle) courseTitle = storedTitle;
-
-          const storedTopics = localStorage.getItem(`offline_topics_list_${courseId}`);
-          if (storedTopics) {
-            fetchedTopicsList = JSON.parse(storedTopics);
-          }
-        }
-        setTopics(fetchedTopicsList);
-
-        // Match current topic
-        const currentTopic = fetchedTopicsList.find(t => t.id === topicId);
-        const topicTitle = currentTopic ? currentTopic.title : topicId;
-        setTitles({ course: courseTitle, topic: topicTitle });
-        if (currentTopic && currentTopic.chapter) {
-          setCurrentChapter(currentTopic.chapter);
-        } else {
-          setCurrentChapter('Foundations');
+        const currentTopic = fetchedTopicsList.find(t => t.id === topicId) || cachedTopic;
+        if (currentTopic) {
+          setTitles({ course: courseTitle, topic: currentTopic.title || topicId });
+          if (currentTopic.chapter) setCurrentChapter(currentTopic.chapter);
         }
 
-        // If cached offline, load instantly!
-        if (localCacheData) {
-          const parsedCache = JSON.parse(localCacheData);
-          setContent(parsedCache.content);
-          setKeyTakeaways(parsedCache.key_takeaways || '');
-          setQuizQuestions(parsedCache.quiz_questions || []);
-          setCacheStatus('offline-cached');
-          setLoading(false);
+        // If content was already displayed from local cache, we are done
+        if (localCacheData || (cachedTopic && cachedTopic.content)) {
           return;
         }
 
-        // Step 2: Since no local cache, check if Firestore holds pre-generated contents
+        // Step 3: Pre-generated content in Firestore
         if (isOnline && currentTopic) {
           if (currentTopic.content) {
-            // Content exists on database backend! Save download cache locally
             setContent(currentTopic.content);
             const takeaways = currentTopic.key_takeaways || '';
             setKeyTakeaways(takeaways);
@@ -159,13 +207,10 @@ export default function Study() {
                 parsedQuestions = typeof currentTopic.quiz_questions === 'string' 
                   ? JSON.parse(currentTopic.quiz_questions) 
                   : currentTopic.quiz_questions;
-              } catch (pqErr) {
-                console.error("Error parsing quiz questions", pqErr);
-              }
+              } catch (pqErr) {}
             }
             setQuizQuestions(parsedQuestions);
 
-            // SAVE DOWNLOAD FOR OFFLINE
             localStorage.setItem(localCacheKey, JSON.stringify({
               content: currentTopic.content,
               key_takeaways: takeaways,
@@ -204,17 +249,15 @@ export default function Study() {
               const userDept = user?.department || "";
               const userSchool = user?.school || "";
 
-              if (!canAffordCredits(user, AI_CREDIT_COSTS.STUDY_GENERATION)) {
+              if (!canUnlockTopic(user, topicId!)) {
                 if (stepInterval) clearInterval(stepInterval);
-                toast.error(
-                  `No AI credits left today — ${getCreditsRemaining(user)} of ${getDailyLimit(user)} remaining. Resets at midnight or upgrade to Pro for 200 credits/day.`,
-                  { duration: 5000 }
-                );
+                toast.error('Free topic limit reached. Upgrade to Pro to unlock unlimited topics.', { duration: 4000 });
                 setLoading(false);
                 setGenerationStep('');
+                navigate('/billing');
                 return;
               }
-              if (user?.id) spendCredits(user.id, user, AI_CREDIT_COSTS.STUDY_GENERATION).catch(console.error);
+              if (user?.id) unlockTopic(user.id, topicId!).catch(console.error);
 
               const studyPackage = await generateStudyContent(topicTitle, courseTitle, userLevel, userDept, userSchool);
               if (stepInterval) clearInterval(stepInterval);
@@ -305,10 +348,10 @@ export default function Study() {
                   navigate(`/course/${courseId}`);
                 }
               }} 
-              className="p-2 -ml-2 rounded-lg hover:bg-muted/10 transition-colors flex items-center gap-2"
+              className="p-2 -ml-2 rounded-lg hover:bg-muted/10 transition-colors flex items-center gap-2 cursor-pointer"
             >
               <ArrowLeft size={24} />
-              <span className="hidden sm:inline font-semibold">Back</span>
+              <span className="hidden sm:inline font-semibold">Back to Topics</span>
             </button>
           </div>
           <div className="flex items-center gap-4 pointer-events-auto">
@@ -393,12 +436,13 @@ export default function Study() {
                        onCancel={() => setActiveTab('Explanation')}
                        courseTitle={titles.course} 
                        courseCode={courseId || ''} 
-                       topicTitle={titles.topic} 
+                       topicTitle={titles.topic}
+                       topicId={topicId}
                        preGeneratedQuestions={quizQuestions}
                        chapter={currentChapter}
                      />
                    </div>
-                )}
+                 )}
               </article>
             </motion.div>
           )}

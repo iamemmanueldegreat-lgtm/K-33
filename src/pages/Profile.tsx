@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -47,7 +47,7 @@ export default function Profile() {
     {
       icon: <Pencil size={18} />,
       label: 'Edit Profile',
-      color: 'bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400',
+      color: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200',
       onClick: () => navigate('/edit-profile'),
     },
     {
@@ -74,7 +74,7 @@ export default function Profile() {
     ...(!isIPhone ? [{
       icon: <Smartphone size={18} />,
       label: isInstalled ? 'App Installed' : 'Install App',
-      color: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400',
+      color: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200',
       onClick: async () => {
         if (isInstalled) return;
         if (installable) {

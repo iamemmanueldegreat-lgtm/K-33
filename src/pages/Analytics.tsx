@@ -44,9 +44,16 @@ export default function Analytics() {
         } as Course));
 
         if (user) {
+          const isPoly = user.school?.toLowerCase().includes('polytechnic') || user.school?.toLowerCase().includes('college');
+          let activeSchool = user.school;
+          const hasSpecificSchoolCourses = coursesData.some(c => c.school === user.school);
+          if (!hasSpecificSchoolCourses) {
+            activeSchool = isPoly ? 'Auchi Polytechnic' : 'University of Benin (UNIBEN)';
+          }
+
           const departments = [user.department, 'General'].filter((v, i, a) => v && a.indexOf(v) === i);
           coursesData = coursesData.filter(c => 
-            c.school === user.school &&
+            (c.school === activeSchool || (isPoly && c.school === 'NBTE') || (!isPoly && c.school === 'CCMAS')) &&
             departments.includes(c.department) &&
             (c.level?.replace(/\s+/g, '') === user.level?.replace(/\s+/g, '') || c.level === 'All Levels' || !c.level)
           );
@@ -68,7 +75,15 @@ export default function Analytics() {
           return null;
         });
 
-        const continueLearningData = (await Promise.all(continueLearningPromises)).filter(Boolean) as Course[];
+        const rawContinue = (await Promise.all(continueLearningPromises)).filter(Boolean) as Course[];
+        const seenIds = new Set<string>();
+        const continueLearningData: Course[] = [];
+        for (const c of rawContinue) {
+          if (c && !seenIds.has(c.id)) {
+            seenIds.add(c.id);
+            continueLearningData.push(c);
+          }
+        }
         setContinueLearning(continueLearningData);
 
       } catch (error) {
@@ -236,12 +251,12 @@ export default function Analytics() {
                 <div className="h-44 bg-slate-100 dark:bg-slate-800 rounded-[24px] animate-pulse"></div>
               </>
             ) : continueLearning.length > 0 ? (
-              continueLearning.map((course) => {
+              continueLearning.map((course, idx) => {
                 const topic = course.topics?.[0];
                 if (!topic) return null;
                 return (
                   <div 
-                    key={`${course.id}-${topic.id}`}
+                    key={`an-cl-${course.id}-${topic.id}-${idx}`}
                     onClick={() => navigate(`/study/${course.id}/${topic.id}`)}
                     className="bg-white dark:bg-slate-800/50 rounded-[24px] overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700/50 cursor-pointer flex flex-col hover:shadow-md hover:scale-[1.01] transition-all duration-300"
                   >

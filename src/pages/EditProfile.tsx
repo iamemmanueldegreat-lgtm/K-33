@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -19,6 +19,7 @@ export default function EditProfile() {
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [gender, setGender] = useState('Male');
+  const [semester, setSemester] = useState<1 | 2>(1);
   
   const [isSaving, setIsSaving] = useState(false);
 
@@ -37,6 +38,7 @@ export default function EditProfile() {
       }
       setPhoneNumber(phone);
       setGender((user as any).gender || 'Male');
+      setSemester(user.semester || 1);
     }
   }, [user]);
 
@@ -74,6 +76,7 @@ export default function EditProfile() {
         full_name: `${firstName} ${lastName}`.trim(),
         phone_number: cleanPhone,
         gender: gender,
+        semester: semester,
       });
       toast.success('Profile updated successfully!');
       await refreshProfile();
@@ -136,7 +139,7 @@ export default function EditProfile() {
                 type="text" 
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all font-medium"
+                className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100 transition-all font-medium"
               />
             </div>
             <div className="flex-1 space-y-1.5">
@@ -145,7 +148,7 @@ export default function EditProfile() {
                 type="text" 
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all font-medium"
+                className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100 transition-all font-medium"
               />
             </div>
           </div>
@@ -167,8 +170,25 @@ export default function EditProfile() {
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="e.g. 09153689632"
-              className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all font-medium"
+              className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100 transition-all font-medium"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-zinc-600 dark:text-zinc-400 block px-1">Current Semester</label>
+            <div className="relative">
+              <select 
+                value={semester}
+                onChange={(e) => setSemester(Number(e.target.value) as 1 | 2)}
+                className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100 transition-all font-medium appearance-none"
+              >
+                <option value={1} className="text-zinc-900 bg-white dark:bg-zinc-800 dark:text-white">1st Semester</option>
+                <option value={2} className="text-zinc-900 bg-white dark:bg-zinc-800 dark:text-white">2nd Semester</option>
+              </select>
+              <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-zinc-500">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -177,7 +197,7 @@ export default function EditProfile() {
               <select 
                 value={gender}
                 onChange={(e) => setGender(e.target.value)}
-                className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all font-medium appearance-none"
+                className="w-full bg-transparent border border-zinc-300 dark:border-zinc-700 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:focus:border-zinc-100 dark:focus:ring-zinc-100 transition-all font-medium appearance-none"
               >
                 <option value="Male" className="text-zinc-900 bg-white dark:bg-zinc-800 dark:text-white">Male</option>
                 <option value="Female" className="text-zinc-900 bg-white dark:bg-zinc-800 dark:text-white">Female</option>
@@ -196,7 +216,7 @@ export default function EditProfile() {
           onClick={handleSave}
           disabled={isSaving}
           whileTap={{ scale: 0.98 }}
-          className="mt-10 w-full max-w-md py-4 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl shadow-lg shadow-violet-500/20 active:scale-[0.98] transition-all flex items-center justify-center"
+          className="mt-10 w-full max-w-md py-4 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer"
         >
           {isSaving ? <Loader2 size={20} className="animate-spin text-white" /> : 'Save Changes'}
         </motion.button>

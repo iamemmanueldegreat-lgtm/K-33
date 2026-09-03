@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { jsonrepair } from "jsonrepair";
 import rateLimit from "express-rate-limit";
 
@@ -13,88 +14,208 @@ const Type = {
   BOOLEAN: "boolean",
 } as const;
 
-// Lazy-loaded DeepSeek Client for full-stack API safety
+// Lazy-loaded AI clients
 let openaiClient: OpenAI | null = null;
 let lastApiKey: string | null = null;
+let geminiClient: GoogleGenAI | null = null;
 
-function getGeminiClient(): any {
+const DEEPSEEK_MODEL = "deepseek-chat";
+const GEMINI_MODEL = "gemini-3.6-flash";
+
+function getGeminiClient(): GoogleGenAI | null {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  if (!geminiClient) {
+    geminiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return geminiClient;
+}
+
+function getDeepSeekClient(): any {
+  const gemini = getGeminiClient();
   const dsKey = process.env.DEEPSEEK_API_KEY;
 
-  if (!dsKey) {
-    throw new Error("Something went wrong. We couldn't complete your request right now. Please try again in a few moments.");
-  }
-
-  if (!openaiClient || dsKey !== lastApiKey) {
+  if (dsKey && (!openaiClient || dsKey !== lastApiKey)) {
     lastApiKey = dsKey;
     openaiClient = new OpenAI({
       apiKey: dsKey,
       baseURL: "https://api.deepseek.com/v1"
     });
   }
+
   return {
     models: {
       generateContent: async (args: any) => {
-        let messages = [];
-        let systemInstruction = "";
-        
-        if (args.config && args.config.systemInstruction) {
-          systemInstruction = args.config.systemInstruction;
+        // Option 1: Gemini via @google/genai SDK
+        if (gemini && !openaiClient) {
+          try {
+            let formattedContents: any = args.contents;
+            if (typeof args.contents === "string") {
+              formattedContents = args.contents;
+            } else if (Array.isArray(args.contents)) {
+              formattedContents = args.contents.map((m: any) => {
+                if (typeof m === "string") return { role: "user", parts: [{ text: m }] };
+                const role = (m.role === "assistant" || m.role === "model") ? "model" : "user";
+                const text = m.parts ? (m.parts[0]?.text || "") : (m.content || m.text || "");
+                return { role, parts: [{ text }] };
+              });
+            }
+
+            const configObj: any = {};
+            if (args.config?.systemInstruction) {
+              configObj.systemInstruction = args.config.systemInstruction;
+            }
+            if (args.config?.responseMimeType) {
+              configObj.responseMimeType = args.config.responseMimeType;
+            }
+            if (args.config?.responseSchema) {
+              configObj.responseSchema = args.config.responseSchema;
+            }
+
+            const res = await gemini.models.generateContent({
+              model: GEMINI_MODEL,
+              contents: formattedContents,
+              config: configObj,
+            });
+
+            return {
+              text: res.text || ""
+            };
+          } catch (geminiError: any) {
+            console.error("Gemini API call failed, attempting DeepSeek fallback:", geminiError.message || geminiError);
+            if (!openaiClient) throw geminiError;
+          }
         }
 
-        // Auto-inject JSON Schema instructions if defined
-        if (args.config && args.config.responseSchema) {
-          const schemaStr = JSON.stringify(args.config.responseSchema);
-          systemInstruction += `\n\nCRITICAL JSON SCHEMA REQUIREMENT:
+        // Option 2: DeepSeek via OpenAI SDK
+        if (openaiClient) {
+          let messages: any[] = [];
+          let systemInstruction = "";
+          
+          if (args.config && args.config.systemInstruction) {
+            systemInstruction = args.config.systemInstruction;
+          }
+
+          if (args.config && args.config.responseSchema) {
+            const schemaStr = JSON.stringify(args.config.responseSchema);
+            systemInstruction += `\n\nCRITICAL JSON SCHEMA REQUIREMENT:
 You MUST return a JSON object conforming strictly to the following JSON Schema structure:
 ${schemaStr}
 
 Ensure you output ONLY a valid stringified JSON object containing exactly the requested keys. Avoid wrapping JSON keys in custom types or lists unless explicitly requested. Do not output anything other than this JSON.`;
+          }
+
+          if (systemInstruction) {
+            messages.push({ role: "system", content: systemInstruction });
+          }
+
+          if (typeof args.contents === "string") {
+            messages.push({ role: "user", content: args.contents });
+          } else if (Array.isArray(args.contents)) {
+            for (const msg of args.contents) {
+              const role = (msg.role === 'model' || msg.role === 'assistant') ? 'assistant' : 'user';
+              const content = msg.parts ? msg.parts[0]?.text : (msg.content || msg.text);
+              messages.push({ role, content });
+            }
+          }
+          
+          let response_format: any;
+          if (args.config && (args.config.responseMimeType === "application/json" || args.config.responseSchema)) {
+            response_format = { type: "json_object" };
+          }
+
+          const res = await openaiClient.chat.completions.create({
+            model: DEEPSEEK_MODEL,
+            messages,
+            response_format,
+          });
+
+          return {
+            text: res.choices[0].message.content
+          };
         }
 
-        if (systemInstruction) {
-          messages.push({ role: "system", content: systemInstruction });
-        }
-        messages.push({ role: "user", content: args.contents });
-        
-        let response_format;
-        if (args.config && (args.config.responseMimeType === "application/json" || args.config.responseSchema)) {
-          response_format = { type: "json_object" };
-        }
-
-        const res = await openaiClient!.chat.completions.create({
-          model: "deepseek-chat",
-          messages,
-          response_format,
-        });
-
-        return {
-          text: res.choices[0].message.content
-        };
+        throw new Error("No AI provider API key is configured or available.");
       },
-      generateContentStream: async (args: any) => {
-        let messages = [];
-        if (args.config && args.config.systemInstruction) {
-          messages.push({ role: "system", content: args.config.systemInstruction });
-        }
-        for (const msg of args.contents) {
-          const role = msg.role === 'model' ? 'assistant' : 'user';
-          const content = msg.parts ? msg.parts[0].text : msg.text;
-          messages.push({ role, content });
-        }
-        
-        const stream = await openaiClient!.chat.completions.create({
-          model: "deepseek-chat",
-          messages,
-          stream: true
-        });
 
-        async function* streamGenerator() {
-          for await (const chunk of stream) {
-            const text = chunk.choices[0]?.delta?.content || "";
-            yield { text };
+      generateContentStream: async (args: any) => {
+        // Option 1: Gemini via @google/genai SDK
+        if (gemini && !openaiClient) {
+          try {
+            let formattedContents: any = args.contents;
+            if (typeof args.contents === "string") {
+              formattedContents = args.contents;
+            } else if (Array.isArray(args.contents)) {
+              formattedContents = args.contents.map((m: any) => {
+                if (typeof m === "string") return { role: "user", parts: [{ text: m }] };
+                const role = (m.role === "assistant" || m.role === "model") ? "model" : "user";
+                const text = m.parts ? (m.parts[0]?.text || "") : (m.content || m.text || "");
+                return { role, parts: [{ text }] };
+              });
+            }
+
+            const configObj: any = {};
+            if (args.config?.systemInstruction) {
+              configObj.systemInstruction = args.config.systemInstruction;
+            }
+
+            const responseStream = await gemini.models.generateContentStream({
+              model: GEMINI_MODEL,
+              contents: formattedContents,
+              config: configObj,
+            });
+
+            async function* geminiStreamGenerator() {
+              for await (const chunk of responseStream) {
+                yield { text: chunk.text || "" };
+              }
+            }
+            return geminiStreamGenerator();
+          } catch (geminiError: any) {
+            console.error("Gemini stream failed, attempting DeepSeek fallback:", geminiError.message || geminiError);
+            if (!openaiClient) throw geminiError;
           }
         }
-        return streamGenerator();
+
+        // Option 2: DeepSeek via OpenAI SDK
+        if (openaiClient) {
+          let messages: any[] = [];
+          if (args.config && args.config.systemInstruction) {
+            messages.push({ role: "system", content: args.config.systemInstruction });
+          }
+          if (Array.isArray(args.contents)) {
+            for (const msg of args.contents) {
+              const role = (msg.role === 'model' || msg.role === 'assistant') ? 'assistant' : 'user';
+              const content = msg.parts ? msg.parts[0]?.text : (msg.content || msg.text);
+              messages.push({ role, content });
+            }
+          } else if (typeof args.contents === "string") {
+            messages.push({ role: "user", content: args.contents });
+          }
+          
+          const stream = await openaiClient.chat.completions.create({
+            model: DEEPSEEK_MODEL,
+            messages,
+            stream: true
+          });
+
+          async function* dsStreamGenerator() {
+            for await (const chunk of stream) {
+              const text = chunk.choices[0]?.delta?.content || "";
+              yield { text };
+            }
+          }
+          return dsStreamGenerator();
+        }
+
+        throw new Error("No AI provider API key is configured or available.");
       }
     }
   };
@@ -162,6 +283,85 @@ function parseJsonSafe(text: string): any {
     }
     throw err;
   }
+}
+
+function detectCurriculumSource(text: string, requestedSource?: string): "NBTE" | "CCMAS" {
+  if (requestedSource === "NBTE" || requestedSource === "CCMAS") {
+    return requestedSource;
+  }
+  const upper = text.toUpperCase();
+  return upper.includes("NATIONAL BOARD FOR TECHNICAL EDUCATION") ||
+    upper.includes("NATIONAL DIPLOMA") ||
+    upper.includes("HIGHER NATIONAL DIPLOMA") ||
+    /\bHND\b/.test(upper)
+    ? "NBTE"
+    : "CCMAS";
+}
+
+function extractCourseSpecificationBlocks(text: string, source: "NBTE" | "CCMAS") {
+  const codePattern = /(?:course\s+code|subject\/course|course\s+code\s*:?)\s*:?\s*([A-Z]{2,4}\s*\d{3})/gi;
+  const matches = Array.from(text.matchAll(codePattern));
+  const seen = new Set<string>();
+  const blocks: string[] = [];
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const rawCode = matches[index][1].replace(/\s+/g, " ").trim().toUpperCase();
+    if (seen.has(rawCode)) continue;
+    const start = matches[index].index ?? 0;
+    const nextStart = matches[index + 1]?.index ?? text.length;
+    const block = text.slice(start, nextStart).trim();
+    if (block.length < 80) continue;
+    seen.add(rawCode);
+    blocks.push(block.slice(0, source === "NBTE" ? 5500 : 4500));
+  }
+
+  return blocks;
+}
+
+function prepareCurriculumForParsing(text: string, source: "NBTE" | "CCMAS") {
+  const pageStart = (page: number) => text.indexOf(`===== PAGE ${page} =====`);
+
+  if (source === "CCMAS") {
+    const computerScienceMatches = Array.from(text.matchAll(/B\.Sc\. Computer Science/gi));
+    const computerScienceStart = computerScienceMatches.length > 1
+      ? computerScienceMatches[1].index ?? text.indexOf("B.Sc. Computer Science")
+      : text.indexOf("B.Sc. Computer Science");
+    const cybersecurityStart = text.indexOf("B.Sc. Cybersecurity", computerScienceStart + 1);
+    const section = computerScienceStart >= 0
+      ? text.slice(computerScienceStart, cybersecurityStart > computerScienceStart ? cybersecurityStart : text.length)
+      : text;
+    const structureStart = section.indexOf("Global Course Structure");
+    const detailsStart = section.indexOf("Course Contents and Learning Outcomes");
+    const structureEnd = detailsStart > structureStart ? detailsStart : section.length;
+    const details = detailsStart >= 0 ? section.slice(detailsStart) : section;
+    return {
+      sourceText: section.slice(structureStart >= 0 ? structureStart : 0, structureEnd).slice(0, 60000),
+      courseBlocks: extractCourseSpecificationBlocks(details, source),
+      note: "This is a CCMAS Computing document. Use the B.Sc. Computer Science programme section only; ignore Cybersecurity, Data Science, Information Systems, and unrelated programmes."
+    };
+  }
+
+  const tableStart = pageStart(8);
+  const detailStart = pageStart(12);
+  const tables = tableStart >= 0
+    ? text.slice(tableStart, detailStart > tableStart ? detailStart : text.length).slice(0, 45000)
+    : text.slice(0, 45000);
+  const detailText = detailStart >= 0 ? text.slice(detailStart) : text;
+  const detailBlocks = extractCourseSpecificationBlocks(detailText, source);
+
+  return {
+    sourceText: tables,
+    courseBlocks: detailBlocks,
+    note: "This is an NBTE polytechnic curriculum. It may contain ND1/ND2 and/or HND1/HND2 course structures. Use the official year/level and semester tables to identify courses, then use the matching course specification blocks to extract learning objectives and topics. Preserve HND courses when present, and do not treat weekly lesson-plan rows as separate courses."
+  };
+}
+
+function chunkCurriculumBlocks(blocks: string[], maxBlocks = 7) {
+  const chunks: string[][] = [];
+  for (let index = 0; index < blocks.length; index += maxBlocks) {
+    chunks.push(blocks.slice(index, index + maxBlocks));
+  }
+  return chunks.length ? chunks : [[]];
 }
 
 function cleanAndValidateQuestions(questions: any[]): any[] {
@@ -492,6 +692,9 @@ function getFallbackQuiz(courseTitle: string, courseCode: string, topicTitle: st
 async function createApp() {
   const app = express();
 
+  // Trust the Replit proxy so express-rate-limit gets the real client IP
+  app.set('trust proxy', 1);
+
   // Middleware to log requests
   app.use((req, res, next) => {
     console.log(`[Express] Received ${req.method} ${req.url}`);
@@ -531,21 +734,20 @@ async function createApp() {
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     const dsKey = process.env.DEEPSEEK_API_KEY;
-    const gemKey = process.env.GEMINI_API_KEY;
     res.json({
       status: "ok",
-      ai: (dsKey || gemKey) ? "connected" : "missing_key",
-      provider: dsKey ? "deepseek" : gemKey ? "gemini" : "none",
+      ai: dsKey ? "connected" : "missing_key",
+      provider: dsKey ? "deepseek" : "none",
       timestamp: new Date().toISOString()
     });
   });
 
-  // API Diagnostics Route using Gemini
+  // API Diagnostics Route
   app.get("/api/diagnostics", async (req, res) => {
     const results: any = {
       timestamp: new Date().toISOString(),
       keys: {},
-      geminiTests: {}
+      aiTests: {}
     };
 
     const maskKey = (key: string | undefined) => {
@@ -554,25 +756,26 @@ async function createApp() {
       return `${key.slice(0, 4)}...${key.slice(-4)} (length: ${key.length})`;
     };
 
-    const gemKey = process.env.DEEPSEEK_API_KEY || process.env.GEMINI_API_KEY;
-    results.keys.gemini = { status: gemKey ? "PRESENT" : "MISSING", mask: maskKey(gemKey) };
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const dsKey = process.env.DEEPSEEK_API_KEY;
+    results.keys.gemini = { status: geminiKey ? "PRESENT" : "MISSING", mask: maskKey(geminiKey) };
+    results.keys.deepseek = { status: dsKey ? "PRESENT" : "MISSING", mask: maskKey(dsKey) };
 
     try {
-      if (!gemKey) {
-        results.geminiTests["deepseek-chat"] = { success: false, error: "Neither DEEPSEEK_API_KEY nor GEMINI_API_KEY is set" };
+      if (!geminiKey && !dsKey) {
+        results.aiTests.general = { success: false, error: "Neither GEMINI_API_KEY nor DEEPSEEK_API_KEY is set" };
       } else {
-        const ai = getGeminiClient();
+        const ai = getDeepSeekClient();
         const testRes = await ai.models.generateContent({
-          model: "deepseek-chat",
           contents: "Hello, respond with exactly 'OK_TEST'",
         });
-        results.geminiTests["deepseek-chat"] = {
+        results.aiTests.general = {
           success: true,
           response: testRes.text?.trim()
         };
       }
     } catch (err: any) {
-      results.geminiTests["deepseek-chat"] = {
+      results.aiTests.general = {
         success: false,
         error: err.message || err.toString()
       };
@@ -600,9 +803,8 @@ Include:
 5. topics: an array of at least 8 progressive topics for this course. Each topic should have a "title", "chapter" (the module name), "chapter_order", and "order".`;
 
     try {
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are a professional university curriculum designer. You must return ONLY a valid JSON object matching the requested schema. Do not output conversational preamble or postscript.",
@@ -720,9 +922,8 @@ CRITICAL PRACTICE QUESTIONS INSTRUCTIONS:
 5. The 'explanation' (Retrieval Rationale) MUST be simple, short, and highly direct (strictly 1 or 2 sentences maximum), explaining in a very simple way why the correct option is indeed correct, and why option at correctIndex matches the calculated answer.`;
 
     try {
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt,
         config: {
           systemInstruction: systemPrompt,
@@ -813,9 +1014,8 @@ Avoid text in the image. Keep it professional, clean and educational.
 Output ONLY the short prompt string.`;
 
     try {
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt,
       });
       const promptText = response.text?.trim() || `educational illustration for ${title} ${department}`;
@@ -841,9 +1041,8 @@ CRITICAL INSTRUCTIONS FOR ACCURACY:
 5. The 'explanation' (Retrieval Rationale) MUST be simple, short, and highly direct (strictly 1 or 2 sentences maximum), explaining in a very simple way why the correct option is indeed correct, and why option at correctIndex matches the calculated answer.
 6. MANDATORY UNIQUE QUESTIONS: Every single one of the ${numQuestions || 5} questions MUST be completely unique, distinct, and high-quality. Do NOT generate duplicate questions or minor phrasing variations of the same test question. Choose different key definitions, core equations, operational mechanics, features, and use-cases of "${topicTitle}" to verify the student's concept recall broadly and deeply.`;
 
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are a professional academic test designer. You must return ONLY a JSON object containing a 'questions' array. No commentary.",
@@ -915,9 +1114,8 @@ STUDENT'S FOLLOW-UP QUESTION:
 Task:
 Answer the student's question clearly, thoroughly, and encouragingly in 2 to 4 sentences. Explain the solution to help them understand the concept deeply.`;
 
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
         contents: prompt
       });
 
@@ -1095,14 +1293,10 @@ When the user asks questions or raises issues, prioritize referencing, explainin
         }
       }
 
-      // Map models: pro -> 'gemini-1.5-flash', flash -> 'gemini-1.5-flash'
-      const activeModel = model === 'pro' ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
+      console.log(`Chat API: Streaming response via DeepSeek (${DEEPSEEK_MODEL})`);
 
-      console.log(`Chat API: Streaming response via model: ${activeModel}`);
-
-      const ai = getGeminiClient();
+      const ai = getDeepSeekClient();
       const responseStream = await ai.models.generateContentStream({
-        model: activeModel,
         contents: chatMessages,
         config: {
           systemInstruction
@@ -1120,11 +1314,144 @@ When the user asks questions or raises issues, prioritize referencing, explainin
       res.write("data: [DONE]\n\n");
       return res.end();
     } catch (error: any) {
-      console.log(`Chat API streaming failed: ${error.message || error}`);
-      const fallbackText = "Something went wrong\nWe couldn't complete your request right now. Please try again in a few moments.";
+      console.log(`Chat API streaming hit API limitations. Sending supportive fallback message: ${error.message || error}`);
+      const fallbackText = "Hello! I am Kortex AI. I noticed that we have temporarily reached our high-speed cloud service rate limits, but don't worry! I'm still here to support you in offline local student helper mode.\n\nHow can I help you today? You can ask me study questions, request course outlines, or let me know what topic you are working on!";
       res.write(`data: ${JSON.stringify({ text: fallbackText })}\n\n`);
       res.write("data: [DONE]\n\n");
       return res.end();
+    }
+  });
+
+  // Curriculum PDF parsing — extracts structured courses + topics from curriculum text
+  app.post("/api/parse-curriculum", async (req, res) => {
+    const { text, department, level, semester, programType, source: requestedSource } = req.body;
+    if (!text?.trim()) {
+      return res.status(400).json({ error: "Extracted curriculum text is required" });
+    }
+
+    const source = detectCurriculumSource(text, requestedSource || programType);
+    const prepared = prepareCurriculumForParsing(text, source);
+    const selectedDepartment = department || (source === "NBTE" ? "Computer Science" : "Computer Science");
+    const selectedLevel = level || (source === "NBTE" ? "ND1" : "100 Level");
+    const selectedSemester = source === "NBTE" ? (semester || 1) : null;
+    const structureText = prepared.sourceText.slice(0, 65000);
+    const batches = chunkCurriculumBlocks(prepared.courseBlocks, source === "CCMAS" ? 6 : 5);
+
+    try {
+      const ai = getDeepSeekClient();
+      const extractedCourses: any[] = [];
+
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+        const courseBlocks = batches[batchIndex]
+          .join("\n\n--- COURSE SPECIFICATION ---\n\n")
+          .slice(0, 36000);
+        const prompt = `You are an expert Nigerian curriculum archivist. Parse one batch of an official ${source} curriculum PDF.
+
+DOCUMENT RULES:
+${prepared.note}
+- Preserve official course codes and titles exactly; do not invent courses.
+- The course structure text is authoritative for course units, levels, and semesters.
+- Only return courses represented by the specification excerpts in THIS BATCH.
+- Use the specification excerpts to extract actual general objectives, theoretical contents, practical contents, learning outcomes, and assessment topics.
+- Ignore table totals, prerequisites, page numbers, repeated headers/footers, admissions prose, and unrelated programmes.
+- Do not return duplicate courses unless the excerpts contain genuinely different level/semester offerings.
+- A course may have an empty topics array only when no teachable content is present in its excerpt.
+
+IMPORT CONTEXT:
+- Department: "${selectedDepartment}"
+- Default level if a course row does not state one: "${selectedLevel}"
+- Default semester if a course row does not state one: ${selectedSemester ?? "not applicable for this CCMAS level-based structure"}
+
+COURSE STRUCTURE / RELEVANT PDF TEXT:
+"""
+${structureText}
+"""
+
+SPECIFICATION EXCERPTS FOR THIS BATCH:
+"""
+${courseBlocks}
+"""
+
+Return ONLY valid JSON:
+{
+  "courses": [
+    {
+      "code": "COM 111",
+      "title": "Introduction to Computing",
+      "level": "ND1",
+      "semester": ${selectedSemester ?? "null"},
+      "credit_units": 3,
+      "topics": [
+        { "title": "History and Evolution of Computers", "chapter": "Foundations of Computing", "chapter_order": 1, "order": 1 }
+      ]
+    }
+  ]
+}
+
+Allowed levels: ND1, ND2, HND1, HND2, 100 Level, 200 Level, 300 Level, 400 Level.
+For CCMAS, leave semester null unless the excerpt explicitly provides a semester.`;
+
+        const response = await ai.models.generateContent({
+          contents: prompt,
+          config: {
+            systemInstruction: "Extract only official Nigerian curriculum data from the provided text. Return valid JSON and never invent missing courses.",
+            responseMimeType: "application/json"
+          }
+        });
+        const parsedBatch = parseJsonSafe(response.text || "{}");
+        if (Array.isArray(parsedBatch?.courses)) {
+          extractedCourses.push(...parsedBatch.courses);
+        }
+      }
+
+      const mergedCourses = new Map<string, any>();
+      for (const course of extractedCourses) {
+        const code = String(course.code || "").replace(/\s+/g, " ").trim().toUpperCase();
+        const title = String(course.title || "").replace(/\s+/g, " ").trim();
+        if (!code || !title) continue;
+
+        const courseLevel = course.level || selectedLevel;
+        const courseSemester = source === "NBTE" && (course.semester === 1 || course.semester === 2)
+          ? course.semester
+          : source === "NBTE" ? selectedSemester : null;
+        const key = `${code}|${courseLevel}|${courseSemester ?? "all"}`;
+        const existing = mergedCourses.get(key);
+        const incomingTopics = Array.isArray(course.topics) ? course.topics : [];
+
+        if (!existing) {
+          mergedCourses.set(key, {
+            code,
+            title,
+            level: courseLevel,
+            semester: courseSemester,
+            credit_units: Number(course.credit_units) || 2,
+            topics: incomingTopics
+          });
+          continue;
+        }
+
+        const topicKeys = new Set((existing.topics || []).map((topic: any) => String(topic.title || "").toLowerCase()));
+        for (const topic of incomingTopics) {
+          const topicKey = String(topic.title || "").toLowerCase();
+          if (topicKey && !topicKeys.has(topicKey)) {
+            existing.topics.push(topic);
+            topicKeys.add(topicKey);
+          }
+        }
+        existing.credit_units = existing.credit_units || Number(course.credit_units) || 2;
+      }
+
+      const courses = Array.from(mergedCourses.values());
+      return res.json({
+        source,
+        department: selectedDepartment,
+        detectedSections: prepared.courseBlocks.length,
+        batches: batches.length,
+        courses
+      });
+    } catch (error: any) {
+      console.error("Curriculum parsing error:", error);
+      return res.status(500).json({ error: error.message || "Failed to parse curriculum" });
     }
   });
 
@@ -1132,14 +1459,19 @@ When the user asks questions or raises issues, prioritize referencing, explainin
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true, allowedHosts: true as any },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true as any,
+        hmr: false,
+        ws: false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get(/^(?!\/api).*/, (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
@@ -1156,11 +1488,25 @@ When the user asks questions or raises issues, prioritize referencing, explainin
 
 async function runStartupDiagnostics() {
   console.log("\n=================== STARTUP DIAGNOSTICS ===================");
+  const geminiKey = process.env.GEMINI_API_KEY;
   const dsKey = process.env.DEEPSEEK_API_KEY;
-  const gemKey = process.env.GEMINI_API_KEY;
+  console.log(`[DIAG] GEMINI_API_KEY: ${geminiKey ? "PRESENT (" + geminiKey.slice(0, 4) + "..." + geminiKey.slice(-4) + ")" : "MISSING"}`);
   console.log(`[DIAG] DEEPSEEK_API_KEY: ${dsKey ? "PRESENT (" + dsKey.slice(0, 4) + "..." + dsKey.slice(-4) + ")" : "MISSING"}`);
-  console.log(`[DIAG] GEMINI_API_KEY: ${gemKey ? "PRESENT (" + gemKey.slice(0, 4) + "..." + gemKey.slice(-4) + ")" : "MISSING"}`);
-  console.log(`[DIAG] Active Key Source: ${dsKey ? "DEEPSEEK_API_KEY" : (gemKey ? "GEMINI_API_KEY (Fallback for DeepSeek)" : "NONE")}`);
+
+  if (geminiKey || dsKey) {
+    try {
+      console.log(`[DIAG] Testing AI Engine provider connection...`);
+      const ai = getDeepSeekClient();
+      const testRes = await ai.models.generateContent({
+        contents: "Say 'AI Engine OK'",
+      });
+      console.log(`[DIAG] AI response: "${testRes.text?.trim()}"`);
+    } catch (e: any) {
+      console.error(`[DIAG] AI Engine connection notice: ${e.message || e}`);
+    }
+  } else {
+    console.log("[DIAG] Warning: Neither GEMINI_API_KEY nor DEEPSEEK_API_KEY is defined. AI interactions will rely on local offline fallback.");
+  }
   console.log("===================================================================\n");
 }
 

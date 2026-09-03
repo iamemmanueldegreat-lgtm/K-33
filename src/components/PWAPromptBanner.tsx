@@ -71,10 +71,10 @@ export default function PWAPromptBanner() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-          className="fixed top-6 left-4 right-4 md:left-auto md:right-6 md:w-96 z-[999] bg-white dark:bg-[#121218] border border-purple-500/30 rounded-[28px] p-4 flex gap-4 shadow-2xl backdrop-blur-md text-text"
+          className="fixed top-6 left-4 right-4 md:left-auto md:right-6 md:w-96 z-[999] bg-white dark:bg-[#121218] border border-zinc-200 dark:border-zinc-800 rounded-[28px] p-4 flex gap-4 shadow-2xl backdrop-blur-md text-text"
         >
           {/* Left Brand Icon */}
-          <div className="w-10 h-10 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-2xl flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-2xl flex items-center justify-center shrink-0">
             <Smartphone size={20} />
           </div>
 
